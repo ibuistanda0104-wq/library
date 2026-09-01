@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🌸 暖心手繪書房 ‧ 線上查書與借閱預約 ☕</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+    <style>
+        :root {
+            --bg-color: #FEFCF8;
+            --card-bg: #FFFFFF;
+            --border-color: #EBDFD2;
+            --text-main: #4A3C31;
+            --text-muted: #A08E82;
+            --pink: #F48F9D;
+            --green: #74C69D;
+            --yellow: #FDE293;
+            --blue: #A2D2FF;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Microsoft JhengHei", sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            padding: 16px;
+            max-width: 860px;
+            margin: 0 auto;
+        }
+
+        .header-card {
+            background: var(--card-bg);
+            border: 2px dashed var(--border-color);
+            border-radius: 16px;
+            padding: 20px;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .header-card h1 {
+            font-size: 1.35rem;
+            color: var(--text-main);
+            margin-bottom: 6px;
+        }
+
+        .header-card p {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+        }
+
+        .search-box {
+            background: var(--card-bg);
+            border: 2px dashed var(--border-color);
+            border-radius: 14px;
+            padding: 14px;
+            margin-bottom: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        input, select, textarea {
+            width: 100%;
+            padding: 10px 14px;
+            border: 1.5px solid var(--border-color);
+            border-radius: 10px;
+            font-size: 0.95rem;
+            color: var(--text-main);
+            background: #FFFDFB;
+            outline: none;
+        }
+
+        input:focus, select:focus, textarea:focus {
+            border-color: var(--pink);
+        }
+
+        .category-scroll {
+            display: flex;
+            gap: 8px;
+            overflow-x: auto;
+            padding-bottom: 6px;
+            scrollbar-width: none;
+        }
+        .category-scroll::-webkit-scrollbar { display: none; }
+
+        .cat-chip {
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: bold;
+            background: #F5EBE0;
+            color: var(--text-main);
+            border: none;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        .cat-chip.active {
+            background: var(--pink);
+            color: white;
+        }
+
+        .book-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .book-card {
+            background: var(--card-bg);
+            border: 2px dashed var(--border-color);
+            border-radius: 14px;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .book-title-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 8px;
+        }
+
+        .book-title {
+            font-size: 1.1rem;
+            font-weight: bold;
+            color: var(--text-main);
+        }
+
+        .status-badge {
+            font-size: 0.8rem;
+            font-weight: bold;
+            padding: 4px 10px;
+            border-radius: 12px;
+            white-space: nowrap;
+        }
+
+        .status-available { background: #E8F5E9; color: #2E7D32; }
+        .status-pending { background: #FFF9C4; color: #F57F17; }
+        .status-borrowed { background: #FFEBEE; color: #C2185B; }
+
+        .book-meta {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .book-desc {
+            font-size: 0.85rem;
+            color: #6B5B4F;
+            line-height: 1.4;
+            background: #FDF9F3;
+            padding: 8px 10px;
+            border-radius: 8px;
+        }
+
+        .btn-reserve {
+            align-self: flex-end;
+            background: var(--pink);
+            color: white;
+            border: none;
+            padding: 8px 18px;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 0.9rem;
+            cursor: pointer;
+            margin-top: 4px;
+        }
+
+        .modal-mask {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.45);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 16px;
+            z-index: 999;
+        }
+
+        .modal-card {
+            background: var(--bg-color);
+            border: 2px solid var(--border-color);
+            border-radius: 18px;
+            padding: 22px;
+            width: 100%;
+            max-width: 480px;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: var(--pink);
+            margin-bottom: 12px;
+            text-align: center;
+        }
+
+        .form-group {
+            margin-bottom: 12px;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 0.85rem;
+            font-weight: bold;
+            margin-bottom: 4px;
+            color: var(--text-main);
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 18px;
+        }
+
+        .btn-submit {
+            flex: 1;
+            background: var(--pink);
+            color: white;
+            border: none;
+            padding: 12px;
+            border-radius: 12px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .btn-cancel {
+            background: #E2D9D0;
+            color: var(--text-main);
+            border: none;
+            padding: 12px 18px;
+            border-radius: 12px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div class="header-card">
+            <h1>🌸 暖心手繪書房 ‧ 線上書櫃 ☕</h1>
+            <p>點選喜歡的書籍即可填寫小紙條預約借閱唷！</p>
+        </div>
+
+        <div class="search-box">
+            <input type="text" v-model="searchKeyword" placeholder="🔍 搜尋書名、作者或 ISBN..." />
+            <div class="category-scroll">
+                <button class="cat-chip" :class="{ active: selectedCategory === '全部' }" @click="selectedCategory = '全部'">全部</button>
+                <button v-for="cat in categories" :key="cat" class="cat-chip" :class="{ active: selectedCategory === cat }" @click="selectedCategory = cat">
+                    {{ cat }}
+                </button>
+            </div>
+        </div>
+
+        <div class="book-list">
+            <div v-if="loading" style="text-align: center; padding: 30px; color: var(--text-muted);">
+                ✨ 正在翻開書櫃找書中...
+            </div>
+            <div v-else-if="filteredBooks.length === 0" style="text-align: center; padding: 30px; color: var(--text-muted);">
+                🥺 沒有找到相符的書籍耶～
+            </div>
+            <div v-for="book in filteredBooks" :key="book.Id" class="book-card">
+                <div class="book-title-row">
+                    <div class="book-title">《{{ book.Title }}》</div>
+                    <span class="status-badge" :class="getStatusClass(book)">
+                        {{ getStatusText(book) }}
+                    </span>
+                </div>
+                <div class="book-meta">
+                    <span v-if="book.Author">✍️ {{ book.Author }}</span>
+                    <span>🏷️ {{ book.Category }}</span>
+                    <span>📍 架位：{{ book.Location }}</span>
+                    <span>📦 庫存：{{ book.AvailableCopies }}/{{ book.TotalCopies }}</span>
+                </div>
+                <div v-if="book.Description" class="book-desc">
+                    {{ book.Description }}
+                </div>
+                <button class="btn-reserve" @click="openReserveModal(book)">
+                    💌 填單借閱 / 預約
+                </button>
+            </div>
+        </div>
+
+        <div v-if="showModal" class="modal-mask" @click.self="showModal = false">
+            <div class="modal-card">
+                <div class="modal-header">✍️ 填寫借閱許願小紙條</div>
+                <p style="font-size: 0.9rem; margin-bottom: 14px; text-align: center; color: var(--text-main);">
+                    欲借書籍：《{{ currentBook.Title }}》
+                </p>
+
+                <div class="form-group">
+                    <label>借閱人姓名 *</label>
+                    <input type="text" v-model="form.readerName" placeholder="請輸入您的姓名" />
+                </div>
+                <div class="form-group">
+                    <label>聯絡電話 *</label>
+                    <input type="tel" v-model="form.readerPhone" placeholder="例如：0912-345-678" />
+                </div>
+                <div class="form-group">
+                    <label>電子信箱 (選填)</label>
+                    <input type="email" v-model="form.readerEmail" placeholder="your@email.com" />
+                </div>
+                <div class="form-group">
+                    <label>預定取書日</label>
+                    <input type="date" v-model="form.pickupDate" />
+                </div>
+                <div class="form-group">
+                    <label>悄悄話備註 (選填)</label>
+                    <textarea rows="2" v-model="form.notes" placeholder="例如：希望能保留至週五取書"></textarea>
+                </div>
+
+                <div class="btn-group">
+                    <button class="btn-cancel" @click="showModal = false">取消</button>
+                    <button class="btn-submit" :disabled="submitting" @click="submitRequest">
+                        {{ submitting ? '送出中...' : '📮 確認送出借閱願望' }}
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp, ref, computed, onMounted } = Vue;
+
+        createApp({
+            setup() {
+                const FIREBASE_URL = "https://my-library-sync-default-rtdb.firebaseio.com/";
+
+                const books = ref([]);
+                const loading = ref(true);
+                const searchKeyword = ref("");
+                const selectedCategory = ref("全部");
+
+                const showModal = ref(false);
+                const submitting = ref(false);
+                const currentBook = ref({});
+                const form = ref({
+                    readerName: "",
+                    readerPhone: "",
+                    readerEmail: "",
+                    pickupDate: new Date(Date.now() + 86400000 * 2).toISOString().split('T')[0],
+                    notes: ""
+                });
+
+                const fetchBooks = async () => {
+                    try {
+                        const res = await fetch(`${FIREBASE_URL}books.json`);
+                        const data = await res.json();
+                        if (data) {
+                            books.value = Array.isArray(data) ? data.filter(Boolean) : Object.values(data);
+                        }
+                    } catch (err) {
+                        console.error("載入失敗:", err);
+                    } finally {
+                        loading.value = false;
+                    }
+                };
+
+                const categories = computed(() => {
+                    const set = new Set(books.value.map(b => b.Category).filter(Boolean));
+                    return Array.from(set);
+                });
+
+                const filteredBooks = computed(() => {
+                    const kw = searchKeyword.value.trim().toLowerCase();
+                    return books.value.filter(b => {
+                        const matchCat = selectedCategory.value === "全部" || b.Category === selectedCategory.value;
+                        const matchKw = !kw || 
+                            (b.Title && b.Title.toLowerCase().includes(kw)) ||
+                            (b.Author && b.Author.toLowerCase().includes(kw)) ||
+                            (b.ISBN && b.ISBN.toLowerCase().includes(kw));
+                        return matchCat && matchKw;
+                    });
+                });
+
+                const getStatusText = (b) => {
+                    if (b.AvailableCopies > 0) return `🌱 在館可借 (${b.AvailableCopies})`;
+                    return b.Status === 1 ? "🌸 預約審核中" : "🎒 已借出 (可預約)";
+                };
+
+                const getStatusClass = (b) => {
+                    if (b.AvailableCopies > 0) return 'status-available';
+                    return b.Status === 1 ? 'status-pending' : 'status-borrowed';
+                };
+
+                const openReserveModal = (book) => {
+                    currentBook.value = book;
+                    form.value.readerName = "";
+                    form.value.readerPhone = "";
+                    form.value.readerEmail = "";
+                    form.value.notes = "";
+                    showModal.value = true;
+                };
+
+                const submitRequest = async () => {
+                    if (!form.value.readerName.trim() || !form.value.readerPhone.trim()) {
+                        alert("請填寫姓名與聯絡電話唷！🥰");
+                        return;
+                    }
+
+                    submitting.value = true;
+                    const newReq = {
+                        RequestId: "REQ-" + Date.now(),
+                        BookId: currentBook.value.Id,
+                        BookTitle: currentBook.value.Title,
+                        ISBN: currentBook.value.ISBN || "",
+                        ReaderName: form.value.readerName.trim(),
+                        ReaderPhone: form.value.readerPhone.trim(),
+                        ReaderEmail: form.value.readerEmail.trim(),
+                        RequestDate: new Date().toISOString(),
+                        ExpectedPickupDate: form.value.pickupDate,
+                        Notes: form.value.notes.trim(),
+                        Status: 0
+                    };
+
+                    try {
+                        await fetch(`${FIREBASE_URL}requests/${newReq.RequestId}.json`, {
+                            method: "PUT",
+                            body: JSON.stringify(newReq)
+                        });
+
+                        alert(`借閱小紙條送出成功！✨\n\n書籍：《${currentBook.value.Title}》\n管理員已收到申請，將為您審核並保留書籍！`);
+                        showModal.value = false;
+                        await fetchBooks();
+                    } catch (err) {
+                        alert("送出失敗，請檢查網路連線！");
+                    } finally {
+                        submitting.value = false;
+                    }
+                };
+
+                onMounted(() => {
+                    fetchBooks();
+                });
+
+                return {
+                    books, loading, searchKeyword, selectedCategory, categories, filteredBooks,
+                    showModal, submitting, currentBook, form,
+                    getStatusText, getStatusClass, openReserveModal, submitRequest
+                };
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>

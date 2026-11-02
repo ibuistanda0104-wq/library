@@ -434,7 +434,7 @@
                     請輸入管理者密碼以查看借閱人名單
                 </p>
                 <div class="form-group">
-                    <input type="password" v-model="adminPasswordInput" placeholder="請輸入密碼 (預設 8888)" @keyup.enter="verifyAdminLogin" />
+                    <input type="password" v-model="adminPasswordInput" placeholder="請輸入密碼" @keyup.enter="verifyAdminLogin" />
                 </div>
                 <div class="btn-group">
                     <button class="btn-act" style="background: #E2E8F0;" @click="showLoginModal = false">取消</button>
@@ -486,7 +486,7 @@
         createApp({
             setup() {
                 const FIREBASE_URL = "https://my-library-sync-default-rtdb.firebaseio.com/";
-                const ADMIN_PIN = "8888"; // 🔐 您的專屬管理密碼
+                const ADMIN_PIN = "8888"; // 🔐 管理者密碼維持 8888，亦可在此更換
 
                 const books = ref([]);
                 const requests = ref({});
@@ -617,7 +617,7 @@
                     // 回補庫存
                     const book = books.value.find(b => b.Id === req.BookId);
                     if (book) {
-                        book.AvailableCopies = Math.min(book.TotalCopies, book.AvailableCopies + 1);
+                        book.AvailableCopies = Math.Min ? Math.min(book.TotalCopies, book.AvailableCopies + 1) : Math.min(book.TotalCopies, book.AvailableCopies + 1);
                         book.Status = 0; // 在館可借
                         await fetch(`${FIREBASE_URL}books.json`, {
                             method: "PUT",

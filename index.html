@@ -24,6 +24,7 @@
             --text-muted: #A08E82;
             --pink: #F48F9D;
             --green: #2E7D32;
+            --purple: #8B5CF6;
             --admin-blue: #2563eb;
             --admin-bg: #eff6ff;
         }
@@ -93,7 +94,6 @@
             margin-bottom: 16px;
         }
 
-        /* 管理員工作台 5 個彈性分頁按鈕 */
         .admin-tabs {
             display: flex;
             flex-wrap: wrap;
@@ -242,16 +242,18 @@
             display: flex;
             gap: 8px;
             margin-top: 6px;
+            flex-wrap: wrap;
         }
 
         .btn-act {
-            flex: 1;
-            padding: 9px;
+            flex: 1 1 calc(33.3% - 8px);
+            min-width: 95px;
+            padding: 9px 4px;
             border: none;
             border-radius: 8px;
             font-weight: bold;
             cursor: pointer;
-            font-size: 0.88rem;
+            font-size: 0.85rem;
             text-align: center;
             display: inline-flex;
             align-items: center;
@@ -262,6 +264,7 @@
         .btn-approve { background: #16A34A; color: white; }
         .btn-reject { background: #DC2626; color: white; }
         .btn-return { background: #2563EB; color: white; }
+        .btn-renew { background: var(--purple); color: white; }
         .btn-notice { background: #D97706; color: white; }
 
         .btn-reserve {
@@ -342,7 +345,7 @@
             </button>
             <h1>🌸 恩典圖書館 ☕</h1>
             <p v-if="!isAdmin">挑選喜歡的愛書，線上填寫借閱小紙條唷！</p>
-            <p v-else style="color: #2563EB; font-weight: bold;">👑 館長專屬工作台（即時借還 ‧ 新書建檔 ‧ 通知管理）</p>
+            <p v-else style="color: #2563EB; font-weight: bold;">👑 館長專屬工作台（即時借還 ‧ 新書建檔 ‧ 防排隊續借）</p>
         </div>
 
         <!-- ================= 管理員專屬工作台 ================= -->
@@ -358,7 +361,6 @@
                 <button class="admin-tab-btn" :class="{ active: adminTab === 'borrowed' }" @click="adminTab = 'borrowed'">
                     🎒 借閱中 ({{ activeBorrowedList.length }})
                 </button>
-                <!-- ➕ 新增的上架新書功能按鈕 -->
                 <button class="admin-tab-btn" :class="{ active: adminTab === 'addBook' }" @click="adminTab = 'addBook'" style="border-color: #16A34A; color: #16A34A;" :style="adminTab === 'addBook' ? 'background:#16A34A; color:white;' : ''">
                     ➕ 上架新書
                 </button>
@@ -396,7 +398,7 @@
             </div>
         </div>
 
-        <!-- 後台分頁 2：目前借閱中名單 -->
+        <!-- 後台分頁 2：目前借閱中名單（內建自動檢查排隊狀況的辦理續借按鈕） -->
         <div v-if="isAdmin && adminTab === 'borrowed'" class="card-list">
             <div v-if="activeBorrowedList.length === 0" style="text-align: center; padding: 40px; color: var(--text-muted);">
                 🌱 目前所有書籍都好端端在館內唷！
@@ -408,13 +410,17 @@
                 </div>
                 <div class="reader-info-box">
                     <div>👤 借閱人：<strong>{{ req.ReaderName }}</strong> (📞 <a :href="'tel:' + req.ReaderPhone">{{ req.ReaderPhone }}</a>)</div>
-                    <div>📅 借閱日期：{{ req.StartDate || req.ExpectedPickupDate }}</div>
+                    <div>📅 起借日期：{{ req.StartDate || req.ExpectedPickupDate }}</div>
                     <div>⏳ 借閱天數：共 {{ calculateDays(req.StartDate || req.ExpectedPickupDate, req.DueDate) }} 天</div>
-                    <div>🎒 歸還日期：<strong style="color: #DC2626;">{{ req.DueDate || '未設定' }}</strong></div>
+                    <div>🎒 目前到期日：<strong style="color: #DC2626;">{{ req.DueDate || '未設定' }}</strong></div>
+                    <div v-if="getWaitingQueueCount(req.BookId) > 0" style="color: #D97706; font-weight: bold; font-size: 0.85rem; margin-top: 4px;">
+                        ⚠️ 注意：此書後面已有 {{ getWaitingQueueCount(req.BookId) }} 位讀者排隊候補中！
+                    </div>
                 </div>
                 <div class="action-row">
-                    <button class="btn-act btn-return" @click="returnBook(req)">📥 辦理歸還入庫</button>
-                    <!-- 📋 還書提醒小卡（依需求客製文案） -->
+                    <button class="btn-act btn-return" @click="returnBook(req)">📥 歸還入庫</button>
+                    <!-- 🔄 自動檢查排隊狀況的續借按鈕 -->
+                    <button class="btn-act btn-renew" @click="handleRenewBook(req)">🔄 辦理續借</button>
                     <button class="btn-act btn-notice" style="background: #0284C7;" @click="openNoticeModal(req, 'remind')">📋 還書提醒小卡</button>
                 </div>
             </div>
@@ -461,7 +467,7 @@
                 <label>內容簡介（選填）</label>
                 <textarea rows="3" v-model="newBookForm.description" placeholder="簡短書籍介紹或核心主題..."></textarea>
             </div>
-            <button class="btn-act btn-approve" style="padding: 12px; font-size: 1rem; margin-top: 6px;" :disabled="addingBook" @click="addNewBook">
+            <button class="btn-act btn-approve" style="padding: 12px; font-size: 1rem; margin-top: 6px; width: 100%;" :disabled="addingBook" @click="addNewBook">
                 {{ addingBook ? '正在入庫建檔中...' : '📚 確認上架入庫 (自動點亮 30 天新書標籤)' }}
             </button>
         </div>
@@ -597,7 +603,6 @@
                     <input type="tel" v-model="form.readerPhone" placeholder="例如：0912-345-678" />
                 </div>
 
-                <!-- 自訂借閱期間（最長 2 個月） -->
                 <div class="date-range-box">
                     <div class="form-group" style="margin-bottom: 8px;">
                         <label>預定借出 / 取書日期 *</label>
@@ -626,6 +631,40 @@
             </div>
         </div>
 
+        <!-- 🔄 辦理續借展延 Modal（無人排隊時開啟） -->
+        <div v-if="showRenewModal" class="modal-mask" @click.self="showRenewModal = false">
+            <div class="modal-card">
+                <div class="modal-header" style="color: var(--purple);">🔄 辦理愛書續借展延</div>
+                <div v-if="currentRenewReq" style="font-size: 0.9rem; line-height: 1.6; color: var(--text-main); margin-bottom: 12px;">
+                    <div style="font-weight: bold; font-size: 1.05rem; margin-bottom: 4px;">《{{ currentRenewReq.BookTitle }}》</div>
+                    <div>👤 借閱人：{{ currentRenewReq.ReaderName }}</div>
+                    <div>📅 起借日期：{{ currentRenewReq.StartDate || currentRenewReq.ExpectedPickupDate }}</div>
+                    <div>🎒 目前到期日：{{ currentRenewReq.DueDate }}</div>
+                    <div style="color: #16A34A; font-weight: bold; font-size: 0.85rem; margin-top: 4px;">
+                        ✨ 系統檢查：目前無人排隊候補，可順暢辦理續借！
+                    </div>
+                </div>
+
+                <div class="date-range-box" style="background: #F5F3FF; border-color: #DDD6FE;">
+                    <div class="form-group" style="margin-bottom: 8px;">
+                        <label style="color: #6D28D9;">設定新的歸還日期 *</label>
+                        <input type="date" v-model="renewNewDueDate" :min="currentRenewReq ? currentRenewReq.DueDate : todayDateStr" :max="maxRenewDueDate" />
+                    </div>
+                    <div style="font-size: 0.8rem; color: #6D28D9; display: flex; justify-content: space-between;">
+                        <span>累計總借期：<strong>{{ calculateDays(currentRenewReq ? (currentRenewReq.StartDate || currentRenewReq.ExpectedPickupDate) : '', renewNewDueDate) }} 天</strong></span>
+                        <span>⚠️ 最長上限：{{ maxRenewDueDate }}</span>
+                    </div>
+                </div>
+
+                <div class="btn-group">
+                    <button class="btn-act" style="background: #E2E8F0;" @click="showRenewModal = false">取消</button>
+                    <button class="btn-act btn-renew" :disabled="submitting" @click="confirmRenewBook">
+                        {{ submitting ? '處理中...' : '✅ 確認續借並生成通知' }}
+                    </button>
+                </div>
+            </div>
+        </div>
+
         <!-- 💌 溫馨通知小卡彈窗 -->
         <div v-if="showNoticeModal" class="modal-mask" @click.self="showNoticeModal = false">
             <div class="modal-card">
@@ -634,7 +673,7 @@
                     訊息已排版完成，點擊下方按鈕即可一鍵複製文字：
                 </p>
                 <div class="form-group">
-                    <textarea rows="8" v-model="currentNoticeText" style="font-size: 0.92rem; line-height: 1.6; background: #FFFDF9; border: 1.5px solid #FCD34D;"></textarea>
+                    <textarea rows="9" v-model="currentNoticeText" style="font-size: 0.92rem; line-height: 1.6; background: #FFFDF9; border: 1.5px solid #FCD34D;"></textarea>
                 </div>
                 <div class="btn-group">
                     <button class="btn-act" style="background: #E2E8F0;" @click="showNoticeModal = false">關閉</button>
@@ -686,10 +725,17 @@
                     description: ""
                 });
 
+                // 🔄 辦理續借狀態
+                const showRenewModal = ref(false);
+                const currentRenewReq = ref(null);
+                const renewNewDueDate = ref('');
+                const maxRenewDueDate = ref('');
+
                 const today = new Date();
                 const todayDateStr = today.toISOString().split('T')[0];
 
                 const addDays = (dStr, days) => {
+                    if (!dStr) return '';
                     const d = new Date(dStr);
                     d.setDate(d.getDate() + days);
                     return d.toISOString().split('T')[0];
@@ -777,57 +823,6 @@
                     }
                 };
 
-                // ➕ 上架新書功能核心方法
-                const addNewBook = async () => {
-                    if (!newBookForm.value.title.trim()) {
-                        alert("請填寫書名唷！📖");
-                        return;
-                    }
-                    const copies = parseInt(newBookForm.value.copies) || 1;
-                    if (copies < 1) {
-                        alert("館藏冊數至少需為 1 冊唷！");
-                        return;
-                    }
-
-                    addingBook.value = true;
-                    const newBook = {
-                        Id: "B-" + Date.now(),
-                        Title: newBookForm.value.title.trim(),
-                        Author: newBookForm.value.author.trim(),
-                        Category: newBookForm.value.category.trim() || "其他",
-                        Location: newBookForm.value.location.trim() || "A-01-01",
-                        TotalCopies: copies,
-                        AvailableCopies: copies,
-                        Status: 0, // 在館可借
-                        ISBN: newBookForm.value.isbn.trim(),
-                        Description: newBookForm.value.description.trim(),
-                        AddedDate: new Date().toISOString() // 自動標記今日入庫，前台亮起 30 天新書推薦
-                    };
-
-                    try {
-                        books.value.unshift(newBook);
-                        await fetch(`${FIREBASE_URL}books.json`, {
-                            method: "PUT",
-                            body: JSON.stringify(books.value)
-                        });
-                        alert(`🎉 愛書《${newBook.Title}》已成功上架入庫！\n系統已自動為它點亮【✨ 本月新書】專屬推薦標籤！`);
-                        
-                        // 清空表單
-                        newBookForm.value.title = "";
-                        newBookForm.value.author = "";
-                        newBookForm.value.category = "";
-                        newBookForm.value.location = "A-01-01";
-                        newBookForm.value.copies = 1;
-                        newBookForm.value.isbn = "";
-                        newBookForm.value.description = "";
-                    } catch (e) {
-                        console.error(e);
-                        alert("上架遇到問題，請檢查網路連線！");
-                    } finally {
-                        addingBook.value = false;
-                    }
-                };
-
                 const requestList = computed(() => {
                     const list = Object.values(requests.value);
                     return list.sort((a, b) => new Date(b.RequestDate) - new Date(a.RequestDate));
@@ -836,8 +831,83 @@
                 const activeBorrowedList = computed(() => requestList.value.filter(r => r.Status === 1));
                 const historyList = computed(() => requestList.value.filter(r => r.Status === 2 || r.Status === 3));
 
-                // 💌 開啟通知小卡（取書通知 ＆ 依照您指定格式的還書提醒）
-                const openNoticeModal = (req, type) => {
+                // 檢查特定書籍是否有其他人在排隊
+                const getWaitingQueueCount = (bookId) => {
+                    return pendingRequests.value.filter(r => r.BookId === bookId).length;
+                };
+
+                // 🔄 自動檢查排隊狀況的續借處理
+                const handleRenewBook = (req) => {
+                    // 1. 自動檢查後面是否有候補排隊者
+                    const pendingForThisBook = pendingRequests.value.filter(r => r.BookId === req.BookId);
+                    if (pendingForThisBook.length > 0) {
+                        const nextReader = pendingForThisBook[0].ReaderName;
+                        const waitCount = pendingForThisBook.length;
+                        alert(`⚠️ 無法辦理續借！\n\n書籍《${req.BookTitle}》後面已有 ${waitCount} 位讀者正在排隊候補（候補第一順位：${nextReader}）。\n\n為保障每位讀者閱讀權益，此書無法續借，請借閱人於原定到期日歸還。\n已為您自動生成【婉拒續借說明小卡】！`);
+                        openNoticeModal(req, 'renewReject', nextReader);
+                        return;
+                    }
+
+                    // 2. 檢查是否達到 60 天最長上限
+                    const startStr = req.StartDate || req.ExpectedPickupDate || todayDateStr;
+                    const maxDue = addDays(startStr, 60);
+                    if (req.DueDate && req.DueDate >= maxDue) {
+                        alert(`⚠️ 借期已達上限！\n\n此書借閱總天數已達 2 個月（60 天）的最長上限（至 ${maxDue}），無法再展延。\n請提醒借閱人於到期日前歸還入庫。`);
+                        return;
+                    }
+
+                    // 3. 通過檢查，開啟展延視窗
+                    currentRenewReq.value = req;
+                    maxRenewDueDate.value = maxDue;
+                    const defaultExtend = addDays(req.DueDate || todayDateStr, 14);
+                    renewNewDueDate.value = defaultExtend > maxDue ? maxDue : defaultExtend;
+                    showRenewModal.value = true;
+                };
+
+                // 確認續借儲存
+                const confirmRenewBook = async () => {
+                    const req = currentRenewReq.value;
+                    const newDue = renewNewDueDate.value;
+                    const startStr = req.StartDate || req.ExpectedPickupDate || todayDateStr;
+
+                    if (!newDue) {
+                        alert("請選擇新的歸還日期！");
+                        return;
+                    }
+                    if (newDue <= req.DueDate) {
+                        alert("新的歸還日期必須晚於目前的到期日唷！");
+                        return;
+                    }
+                    if (newDue > maxRenewDueDate.value) {
+                        alert(`歸還日期不得超過最長上限（${maxRenewDueDate.value}）！`);
+                        return;
+                    }
+
+                    submitting.value = true;
+                    try {
+                        req.DueDate = newDue;
+                        req.RenewCount = (req.RenewCount || 0) + 1;
+                        await fetch(`${FIREBASE_URL}requests/${req.RequestId}.json`, {
+                            method: "PATCH",
+                            body: JSON.stringify({
+                                DueDate: newDue,
+                                RenewCount: req.RenewCount,
+                                AdminRemark: `已辦理續借至 ${newDue}`
+                            })
+                        });
+                        showRenewModal.value = false;
+                        await refreshAllData();
+                        alert(`🎉 續借辦理成功！\n\n新歸還日期為：${newDue} (累計借閱 ${calculateDays(startStr, newDue)} 天)`);
+                        openNoticeModal(req, 'renewSuccess');
+                    } catch (e) {
+                        alert("更新失敗，請檢查網路連線！");
+                    } finally {
+                        submitting.value = false;
+                    }
+                };
+
+                // 💌 開啟通知小卡
+                const openNoticeModal = (req, type, extra = '') => {
                     const startStr = req.StartDate || req.ExpectedPickupDate;
                     const dueStr = req.DueDate || '未設定';
                     const days = calculateDays(startStr, dueStr);
@@ -854,7 +924,6 @@
                             `願這本書陪伴您度過美好的閱讀時光，在字裡行間收穫滿滿的恩典與溫暖！☕\n` +
                             `若已取書完成或借閱上有任何問題，都歡迎隨時跟我們說唷～🌱`;
                     } else if (type === 'remind') {
-                        // 依照指定格式：借閱書名、借閱日期、借閱天數、歸還日期 ＋ 溫馨祝福語
                         currentNoticeText.value = 
                             `🌸【恩典圖書館 ‧ 還書提醒】\n\n` +
                             `📖 借閱書名：《${req.BookTitle}》\n` +
@@ -862,6 +931,23 @@
                             `⏳ 借閱天數：共 ${days} 天\n` +
                             `🎒 歸還日期：${dueStr}\n\n` +
                             `感謝您的借閱與愛護，願神的平安喜樂與亮光伴隨您的讀書時刻！`;
+                    } else if (type === 'renewSuccess') {
+                        currentNoticeText.value = 
+                            `🌸【恩典圖書館 ‧ 續借展延通知】\n\n` +
+                            `${req.ReaderName} 平安！\n` +
+                            `您所借閱的愛書《${req.BookTitle}》已為您順利辦理續借展延囉～✨\n\n` +
+                            `📖 借閱書名：《${req.BookTitle}》\n` +
+                            `📅 起借日期：${startStr}\n` +
+                            `⏳ 累計借期：共 ${days} 天\n` +
+                            `🎒 新歸還日期：${dueStr}\n\n` +
+                            `感謝您的愛護與珍惜，願神的話語與亮光持續在閱讀中引導您的每一步！🌿`;
+                    } else if (type === 'renewReject') {
+                        currentNoticeText.value = 
+                            `🌸【恩典圖書館 ‧ 續借回覆說明】\n\n` +
+                            `${req.ReaderName} 平安！\n` +
+                            `關於您詢問的愛書《${req.BookTitle}》，因目前後面已有其他讀者排隊候補借閱囉～✨\n\n` +
+                            `為了讓恩典與書香能流動傳遞給每位等候的朋友，此書暫時無法為您辦理續借，需請您於原定日期（${dueStr}）前帶回館內歸還入庫。\n\n` +
+                            `非常感謝您的體諒、包容與愛護！歸還時也非常歡迎您再挑選其他喜愛的好書借閱唷！☕🌿`;
                     }
 
                     showNoticeModal.value = true;
@@ -883,6 +969,55 @@
                         showNoticeModal.value = false;
                     } catch (e) {
                         alert("複製失敗，請長按文字框手動複製唷！");
+                    }
+                };
+
+                const addNewBook = async () => {
+                    if (!newBookForm.value.title.trim()) {
+                        alert("請填寫書名唷！📖");
+                        return;
+                    }
+                    const copies = parseInt(newBookForm.value.copies) || 1;
+                    if (copies < 1) {
+                        alert("館藏冊數至少需為 1 冊唷！");
+                        return;
+                    }
+
+                    addingBook.value = true;
+                    const newBook = {
+                        Id: "B-" + Date.now(),
+                        Title: newBookForm.value.title.trim(),
+                        Author: newBookForm.value.author.trim(),
+                        Category: newBookForm.value.category.trim() || "其他",
+                        Location: newBookForm.value.location.trim() || "A-01-01",
+                        TotalCopies: copies,
+                        AvailableCopies: copies,
+                        Status: 0,
+                        ISBN: newBookForm.value.isbn.trim(),
+                        Description: newBookForm.value.description.trim(),
+                        AddedDate: new Date().toISOString()
+                    };
+
+                    try {
+                        books.value.unshift(newBook);
+                        await fetch(`${FIREBASE_URL}books.json`, {
+                            method: "PUT",
+                            body: JSON.stringify(books.value)
+                        });
+                        alert(`🎉 愛書《${newBook.Title}》已成功上架入庫！\n系統已自動為它點亮【✨ 本月新書】專屬推薦標籤！`);
+                        
+                        newBookForm.value.title = "";
+                        newBookForm.value.author = "";
+                        newBookForm.value.category = "";
+                        newBookForm.value.location = "A-01-01";
+                        newBookForm.value.copies = 1;
+                        newBookForm.value.isbn = "";
+                        newBookForm.value.description = "";
+                    } catch (e) {
+                        console.error(e);
+                        alert("上架遇到問題，請檢查網路連線！");
+                    } finally {
+                        addingBook.value = false;
                     }
                 };
 
@@ -1098,6 +1233,8 @@
                     showNoticeModal, currentNoticeText, openNoticeModal, copyNoticeText,
                     showReserveModal, submitting, currentBook, form,
                     newBookForm, addingBook, addNewBook,
+                    showRenewModal, currentRenewReq, renewNewDueDate, maxRenewDueDate,
+                    handleRenewBook, confirmRenewBook, getWaitingQueueCount,
                     todayDateStr, maxReturnDateStr, formDaysCount, onStartDateChange, calculateDays,
                     toggleAdminMode, verifyAdminLogin, refreshAllData,
                     approveRequest, rejectRequest, returnBook, submitRequest, openReserveModal,

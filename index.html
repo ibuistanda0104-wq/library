@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI圖書館 ‧ 智慧館藏與管理中心</title>
+    <title>恩典圖書館 ‧ 智慧館藏與借閱中心</title>
     
     <!-- PWA 與桌面 App 圖示設定 -->
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#2563eb">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="AI圖書館">
+    <meta name="apple-mobile-web-app-title" content="恩典圖書館">
     <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/3389/3389032.png">
     <link rel="icon" type="image/png" href="https://cdn-icons-png.flaticon.com/512/3389/3389032.png">
 
@@ -44,7 +44,6 @@
             margin: 0 auto;
         }
 
-        /* 頂部標頭 */
         .header-card {
             background: var(--card-bg);
             border: 2px dashed var(--border-color);
@@ -86,7 +85,6 @@
             border-color: #DC2626;
         }
 
-        /* 管理後台模式專屬橫幅 */
         .admin-banner {
             background: var(--admin-bg);
             border: 2px solid var(--admin-blue);
@@ -118,7 +116,6 @@
             color: white;
         }
 
-        /* 搜尋與篩選列 */
         .search-box {
             background: var(--card-bg);
             border: 2px dashed var(--border-color);
@@ -171,7 +168,6 @@
             color: white;
         }
 
-        /* 卡片設計 */
         .card-list {
             display: flex;
             flex-direction: column;
@@ -250,7 +246,6 @@
             cursor: pointer;
         }
 
-        /* 彈窗 Modal */
         .modal-mask {
             position: fixed;
             top: 0; left: 0; right: 0; bottom: 0;
@@ -307,12 +302,12 @@
             <button class="admin-toggle-btn" :class="{ active: isAdmin }" @click="toggleAdminMode">
                 {{ isAdmin ? '🚪 退出後台' : '🔐 管理登入' }}
             </button>
-            <h1>🌸 暖心手繪書房 ‧ AI圖書館 ☕</h1>
+            <h1>🌸 暖心手繪書房 ‧ 恩典圖書館 ☕</h1>
             <p v-if="!isAdmin">挑選喜歡的愛書，線上填寫借閱小紙條唷！</p>
-            <p v-else style="color: #2563EB; font-weight: bold;">👑 館長專屬工作台（即時掌握申請名單）</p>
+            <p v-else style="color: #2563EB; font-weight: bold;">👑 館長專屬工作台（恩典圖書館管理收件）</p>
         </div>
 
-        <!-- ================= 管理員專屬工作台 ================= -->
+        <!-- 管理員工作台 -->
         <div v-if="isAdmin" class="admin-banner">
             <div style="display: flex; justify-content: space-between; align-items: center;">
                 <span style="font-weight: bold; color: var(--admin-blue);">📋 管理面板選單</span>
@@ -331,7 +326,7 @@
             </div>
         </div>
 
-        <!-- 後台清單：待審核小紙條 -->
+        <!-- 待審核小紙條 -->
         <div v-if="isAdmin && adminTab === 'pending'" class="card-list">
             <div v-if="pendingRequests.length === 0" style="text-align: center; padding: 40px; color: var(--text-muted);">
                 ✨ 目前沒有等待審核的借閱小紙條唷！
@@ -356,7 +351,7 @@
             </div>
         </div>
 
-        <!-- 後台清單：目前借閱中名單 -->
+        <!-- 目前借閱中名單 -->
         <div v-if="isAdmin && adminTab === 'borrowed'" class="card-list">
             <div v-if="activeBorrowedList.length === 0" style="text-align: center; padding: 40px; color: var(--text-muted);">
                 🌱 目前所有書籍都好端端地在館內唷！
@@ -375,7 +370,7 @@
             </div>
         </div>
 
-        <!-- 後台清單：歷史紀錄 -->
+        <!-- 歷史紀錄 -->
         <div v-if="isAdmin && adminTab === 'history'" class="card-list">
             <div v-for="req in historyList" :key="req.RequestId" class="item-card" style="opacity: 0.8;">
                 <div style="display: flex; justify-content: space-between;">
@@ -386,7 +381,7 @@
             </div>
         </div>
 
-        <!-- ================= 前台：讀者查書區塊 ================= -->
+        <!-- 前台：讀者查書區塊 -->
         <div v-if="!isAdmin">
             <div class="search-box">
                 <input type="text" v-model="searchKeyword" placeholder="🔍 搜尋書名、作者或 ISBN..." />
@@ -400,7 +395,7 @@
 
             <div class="card-list">
                 <div v-if="loading" style="text-align: center; padding: 30px; color: var(--text-muted);">
-                    ✨ 正在為您翻閱書櫃中...
+                    ✨ 正在為您翻閱恩典書櫃中...
                 </div>
                 <div v-else-if="filteredBooks.length === 0" style="text-align: center; padding: 30px; color: var(--text-muted);">
                     🥺 沒有找到相符的書籍耶～
@@ -486,7 +481,7 @@
         createApp({
             setup() {
                 const FIREBASE_URL = "https://my-library-sync-default-rtdb.firebaseio.com/";
-                const ADMIN_PIN = "8888"; // 🔐 管理者密碼維持 8888，亦可在此更換
+                const ADMIN_PIN = "8888"; // 🔐 管理者密碼
 
                 const books = ref([]);
                 const requests = ref({});
@@ -494,13 +489,11 @@
                 const searchKeyword = ref("");
                 const selectedCategory = ref("全部");
 
-                // 管理員狀態
                 const isAdmin = ref(false);
                 const showLoginModal = ref(false);
                 const adminPasswordInput = ref("");
                 const adminTab = ref("pending");
 
-                // 讀者表單狀態
                 const showReserveModal = ref(false);
                 const submitting = ref(false);
                 const currentBook = ref({});
@@ -512,7 +505,6 @@
                     notes: ""
                 });
 
-                // 載入書籍
                 const fetchBooks = async () => {
                     try {
                         const res = await fetch(`${FIREBASE_URL}books.json`);
@@ -527,7 +519,6 @@
                     }
                 };
 
-                // 載入所有申請單 (管理員用)
                 const fetchRequests = async () => {
                     try {
                         const res = await fetch(`${FIREBASE_URL}requests.json`);
@@ -542,7 +533,6 @@
                     await Promise.all([fetchBooks(), fetchRequests()]);
                 };
 
-                // 登入管理員驗證
                 const toggleAdminMode = () => {
                     if (isAdmin.value) {
                         isAdmin.value = false;
@@ -562,13 +552,11 @@
                     }
                 };
 
-                // 篩選申請單
                 const requestList = computed(() => Object.values(requests.value));
                 const pendingRequests = computed(() => requestList.value.filter(r => r.Status === 0));
                 const activeBorrowedList = computed(() => requestList.value.filter(r => r.Status === 1));
                 const historyList = computed(() => requestList.value.filter(r => r.Status === 2 || r.Status === 3));
 
-                // 管理員動作：核准借出
                 const approveRequest = async (req) => {
                     if (!confirm(`確定要核准《${req.BookTitle}》給 ${req.ReaderName} 嗎？`)) return;
                     req.Status = 1;
@@ -579,11 +567,10 @@
                         body: JSON.stringify({ Status: 1, DueDate: req.DueDate })
                     });
 
-                    // 扣減書籍庫存
                     const book = books.value.find(b => b.Id === req.BookId);
                     if (book && book.AvailableCopies > 0) {
                         book.AvailableCopies -= 1;
-                        if (book.AvailableCopies === 0) book.Status = 2; // 已借出
+                        if (book.AvailableCopies === 0) book.Status = 2;
                         await fetch(`${FIREBASE_URL}books.json`, {
                             method: "PUT",
                             body: JSON.stringify(books.value)
@@ -592,7 +579,6 @@
                     await refreshAllData();
                 };
 
-                // 管理員動作：拒絕申請
                 const rejectRequest = async (req) => {
                     if (!confirm(`確定要婉拒這筆借閱申請嗎？`)) return;
                     req.Status = 2;
@@ -603,7 +589,6 @@
                     await refreshAllData();
                 };
 
-                // 管理員動作：辦理歸還入庫
                 const returnBook = async (req) => {
                     if (!confirm(`確認《${req.BookTitle}》已歸還入庫？`)) return;
                     req.Status = 3;
@@ -614,11 +599,10 @@
                         body: JSON.stringify({ Status: 3, ReturnedDate: req.ReturnedDate })
                     });
 
-                    // 回補庫存
                     const book = books.value.find(b => b.Id === req.BookId);
                     if (book) {
-                        book.AvailableCopies = Math.Min ? Math.min(book.TotalCopies, book.AvailableCopies + 1) : Math.min(book.TotalCopies, book.AvailableCopies + 1);
-                        book.Status = 0; // 在館可借
+                        book.AvailableCopies = Math.min(book.TotalCopies, book.AvailableCopies + 1);
+                        book.Status = 0;
                         await fetch(`${FIREBASE_URL}books.json`, {
                             method: "PUT",
                             body: JSON.stringify(books.value)
@@ -627,7 +611,6 @@
                     await refreshAllData();
                 };
 
-                // 讀者送出申請
                 const submitRequest = async () => {
                     if (!form.value.readerName.trim() || !form.value.readerPhone.trim()) {
                         alert("請填寫姓名與聯絡電話唷！🥰");
@@ -654,7 +637,7 @@
                             method: "PUT",
                             body: JSON.stringify(newReq)
                         });
-                        alert(`借閱小紙條送出成功！✨\n\n書籍：《${currentBook.value.Title}》\n管理員已收到申請，將為您審核保留！`);
+                        alert(`借閱小紙條送出成功！✨\n\n書籍：《${currentBook.value.Title}》\n恩典圖書館管理員已收到申請，將為您審核保留！`);
                         showReserveModal.value = false;
                         await refreshAllData();
                     } catch (e) {

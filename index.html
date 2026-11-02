@@ -317,6 +317,14 @@
             color: var(--text-main);
         }
 
+        .date-range-box {
+            background: #FDF4E3;
+            border: 1px solid #FDE68A;
+            border-radius: 10px;
+            padding: 10px;
+            margin-bottom: 12px;
+        }
+
         .btn-group {
             display: flex;
             gap: 10px;
@@ -326,7 +334,6 @@
 </head>
 <body>
     <div id="app">
-        <!-- 頂部卡片 -->
         <div class="header-card">
             <button class="admin-toggle-btn" :class="{ active: isAdmin }" @click="toggleAdminMode">
                 {{ isAdmin ? '🚪 退出後台' : '🔐 管理登入' }}
@@ -372,13 +379,12 @@
                     <div>👤 借閱人：<strong>{{ req.ReaderName }}</strong></div>
                     <div>📞 電話：<a :href="'tel:' + req.ReaderPhone" style="color: var(--admin-blue); font-weight: bold;">{{ req.ReaderPhone }}</a></div>
                     <div v-if="req.ReaderLine">💬 LINE：<strong>{{ req.ReaderLine }}</strong></div>
-                    <div>📅 預定取書：{{ req.ExpectedPickupDate }}</div>
+                    <div>📅 借閱區間：<strong>{{ req.StartDate || req.ExpectedPickupDate }} ～ {{ req.DueDate }}</strong> (共 {{ calculateDays(req.StartDate || req.ExpectedPickupDate, req.DueDate) }} 天)</div>
                     <div v-if="req.Notes" style="color: #64748B;">💬 讀者備註：{{ req.Notes }}</div>
                     <div style="font-size: 0.8rem; color: #94A3B8; margin-top: 4px;">🕒 申請時間：{{ formatDateTime(req.RequestDate) }}</div>
                 </div>
                 <div class="action-row">
                     <button class="btn-act btn-approve" @click="approveRequest(req)">✅ 核准借出</button>
-                    <!-- 📲 一鍵喚醒 LINE 發送取書通知 -->
                     <button class="btn-act btn-line" @click="sendLineNotice(req, 'pickup')">📲 LINE 通知取書</button>
                     <button class="btn-act btn-reject" style="max-width: 80px;" @click="rejectRequest(req)">婉拒</button>
                 </div>
@@ -399,11 +405,10 @@
                     <div>👤 借閱人：<strong>{{ req.ReaderName }}</strong> (📞 <a :href="'tel:' + req.ReaderPhone">{{ req.ReaderPhone }}</a>)</div>
                     <div v-if="req.ReaderLine">💬 LINE：<strong>{{ req.ReaderLine }}</strong></div>
                     <div>🕒 借出時間：<strong style="color: #2563EB;">{{ formatDateTime(req.BorrowDate || req.RequestDate) }}</strong></div>
-                    <div>📅 應還日期：<strong>{{ req.DueDate || '未設定' }}</strong></div>
+                    <div>📅 預定應還：<strong style="color: #DC2626;">{{ req.DueDate || '未設定' }}</strong></div>
                 </div>
                 <div class="action-row">
                     <button class="btn-act btn-return" @click="returnBook(req)">📥 辦理歸還入庫</button>
-                    <!-- 📲 LINE 還書提醒 -->
                     <button class="btn-act btn-line" @click="sendLineNotice(req, 'remind')">📲 LINE 溫馨提醒</button>
                 </div>
             </div>
@@ -428,7 +433,7 @@
                 </div>
                 <div class="meta-info">
                     <span>分類：{{ item.book.Category }}</span>
-                    <span>目前庫存：{{ item.book.AvailableCopies }}/{{ item.book.TotalCopies }}</span>
+                    <span>目前在庫：{{ item.book.AvailableCopies }}/{{ item.book.TotalCopies }}</span>
                     <span v-if="isNewBook(item.book)" class="badge badge-new">✨ 展出中新書</span>
                 </div>
             </div>
@@ -452,6 +457,7 @@
                     <div v-if="req.ReturnedDate">
                         📥 歸還時間：<strong style="color: #16A34A;">{{ formatDateTime(req.ReturnedDate) }}</strong>
                     </div>
+                    <div>📅 約定借期：{{ req.StartDate || req.ExpectedPickupDate }} ～ {{ req.DueDate }}</div>
                     <div v-if="req.AdminRemark" style="font-size: 0.8rem; color: #64748B;">備註：{{ req.AdminRemark }}</div>
                 </div>
             </div>
@@ -523,7 +529,7 @@
             </div>
         </div>
 
-        <!-- 讀者借閱表單 Modal -->
+        <!-- 讀者借閱表單 Modal（支援自訂借還日期與最長 2 個月限制） -->
         <div v-if="showReserveModal" class="modal-mask" @click.self="showReserveModal = false">
             <div class="modal-card">
                 <div class="modal-header">✍️ 填寫借閱許願小紙條</div>
@@ -542,10 +548,23 @@
                     <label>LINE 暱稱或 ID (選填，方便通知取書)</label>
                     <input type="text" v-model="form.readerLine" placeholder="例如：小明 或 ming123" />
                 </div>
-                <div class="form-group">
-                    <label>預定取書日</label>
-                    <input type="date" v-model="form.pickupDate" />
+
+                <!-- 自訂借閱期間（限制最多 2 個月） -->
+                <div class="date-range-box">
+                    <div class="form-group" style="margin-bottom: 8px;">
+                        <label>預定借出 / 取書日期 *</label>
+                        <input type="date" v-model="form.startDate" :min="todayDateStr" @change="onStartDateChange" />
+                    </div>
+                    <div class="form-group" style="margin-bottom: 6px;">
+                        <label>預定歸還日期 * (最長 2 個月)</label>
+                        <input type="date" v-model="form.returnDate" :min="form.startDate" :max="maxReturnDateStr" />
+                    </div>
+                    <div style="font-size: 0.8rem; color: #92400E; display: flex; justify-content: space-between;">
+                        <span>借期天數：<strong>{{ formDaysCount }} 天</strong></span>
+                        <span>⚠️ 借閱上限為 2 個月 (60天)</span>
+                    </div>
                 </div>
+
                 <div class="form-group">
                     <label>悄悄話備註 (選填)</label>
                     <textarea rows="2" v-model="form.notes" placeholder="例如：希望能保留至週五取書"></textarea>
@@ -582,13 +601,54 @@
                 const showReserveModal = ref(false);
                 const submitting = ref(false);
                 const currentBook = ref({});
+
+                // 日期輔助工具
+                const today = new Date();
+                const todayDateStr = today.toISOString().split('T')[0];
+
+                const addDays = (dStr, days) => {
+                    const d = new Date(dStr);
+                    d.setDate(d.getDate() + days);
+                    return d.toISOString().split('T')[0];
+                };
+
                 const form = ref({
                     readerName: "",
                     readerPhone: "",
                     readerLine: "",
-                    pickupDate: new Date(Date.now() + 86400000 * 2).toISOString().split('T')[0],
+                    startDate: todayDateStr,
+                    returnDate: addDays(todayDateStr, 14), // 預設 14 天
                     notes: ""
                 });
+
+                // 最長只能選取借出日 + 60 天（2 個月）
+                const maxReturnDateStr = computed(() => {
+                    return addDays(form.value.startDate, 60);
+                });
+
+                // 當修改借出日，自動重設最大歸還日
+                const onStartDateChange = () => {
+                    if (form.value.returnDate < form.value.startDate) {
+                        form.value.returnDate = form.value.startDate;
+                    } else if (form.value.returnDate > maxReturnDateStr.value) {
+                        form.value.returnDate = maxReturnDateStr.value;
+                    }
+                };
+
+                const formDaysCount = computed(() => {
+                    const s = new Date(form.value.startDate);
+                    const r = new Date(form.value.returnDate);
+                    const diff = Math.round((r - s) / (1000 * 3600 * 24));
+                    return isNaN(diff) || diff < 0 ? 0 : diff;
+                });
+
+                const calculateDays = (start, end) => {
+                    if (!start || !end) return 0;
+                    const s = new Date(start);
+                    const e = new Date(end);
+                    const diff = Math.round((e - s) / (1000 * 3600 * 24));
+                    return diff >= 0 ? diff : 0;
+                };
 
                 const fetchBooks = async () => {
                     try {
@@ -645,36 +705,35 @@
                 const activeBorrowedList = computed(() => requestList.value.filter(r => r.Status === 1));
                 const historyList = computed(() => requestList.value.filter(r => r.Status === 2 || r.Status === 3));
 
-                // 📲 一鍵喚醒手機 LINE 傳送通知核心方法
+                // 📲 LINE 轉發通知
                 const sendLineNotice = (req, type) => {
                     let msg = "";
-                    const dueDateStr = req.DueDate || new Date(Date.now() + 86400000 * 14).toISOString().split('T')[0];
+                    const startStr = req.StartDate || req.ExpectedPickupDate;
+                    const dueStr = req.DueDate || '未設定';
 
                     if (type === 'pickup') {
                         msg = `🌸【恩典圖書館 ‧ 借閱核准取書通知】\n\n` +
                               `${req.ReaderName} 平安！\n` +
                               `您預約借閱的愛書已經為您保留核准囉！✨\n\n` +
                               `📖 借閱書籍：《${req.BookTitle}》\n` +
-                              `📅 預定取書：${req.ExpectedPickupDate}\n` +
-                              `🎒 應還日期：${dueDateStr}\n\n` +
-                              `請於預定時間前往取書，願您閱讀蒙福、收穫滿滿！☕`;
+                              `📅 借閱期間：${startStr} ～ ${dueStr} (共 ${calculateDays(startStr, dueStr)} 天)\n` +
+                              `🎒 最晚應還日：${dueStr}\n\n` +
+                              `請於約定時間前往取書，願您閱讀蒙福、收穫滿滿！☕`;
                     } else if (type === 'remind') {
                         msg = `🌸【恩典圖書館 ‧ 還書溫馨提醒】\n\n` +
                               `${req.ReaderName} 平安！\n` +
-                              `您所借閱的《${req.BookTitle}》即將於 ${req.DueDate || '近期'} 到期囉。\n\n` +
+                              `您所借閱的《${req.BookTitle}》即將於 ${dueStr} 到期囉。\n\n` +
                               `若已閱讀完畢，歡迎於開館時間帶回歸還入庫，謝謝您的愛護與配合！🌱`;
                     }
 
-                    // 喚起手機 LINE 轉發介面
                     const lineUrl = `https://line.me/R/share?text=${encodeURIComponent(msg)}`;
                     window.open(lineUrl, '_blank');
                 };
 
                 const approveRequest = async (req) => {
-                    if (!confirm(`確定要核准《${req.BookTitle}》給 ${req.ReaderName} 嗎？`)) return;
+                    if (!confirm(`確定要核准《${req.BookTitle}》給 ${req.ReaderName} 嗎？\n預定應還日期為：${req.DueDate}`)) return;
                     req.Status = 1;
                     req.BorrowDate = new Date().toISOString();
-                    req.DueDate = new Date(Date.now() + 86400000 * 14).toISOString().split('T')[0];
 
                     await fetch(`${FIREBASE_URL}requests/${req.RequestId}.json`, {
                         method: "PATCH",
@@ -775,6 +834,21 @@
                         return;
                     }
 
+                    // 檢查借閱天數是否合法（不可小於 0，不可大於 60 天）
+                    const start = new Date(form.value.startDate);
+                    const ret = new Date(form.value.returnDate);
+                    const diffDays = Math.round((ret - start) / (1000 * 3600 * 24));
+
+                    if (diffDays < 0) {
+                        alert("歸還日期不能早於借出取書日期唷！請重新確認。");
+                        return;
+                    }
+
+                    if (diffDays > 60) {
+                        alert("每本書最長借期上限為 2 個月（60 天）唷！請調整歸還日期。");
+                        return;
+                    }
+
                     submitting.value = true;
                     const newReq = {
                         RequestId: "REQ-" + Date.now(),
@@ -785,7 +859,9 @@
                         ReaderPhone: form.value.readerPhone.trim(),
                         ReaderLine: form.value.readerLine.trim(),
                         RequestDate: new Date().toISOString(),
-                        ExpectedPickupDate: form.value.pickupDate,
+                        StartDate: form.value.startDate,
+                        ExpectedPickupDate: form.value.startDate,
+                        DueDate: form.value.returnDate,
                         Notes: form.value.notes.trim(),
                         Status: 0
                     };
@@ -795,7 +871,7 @@
                             method: "PUT",
                             body: JSON.stringify(newReq)
                         });
-                        alert(`借閱小紙條送出成功！✨\n\n書籍：《${currentBook.value.Title}》\n管理員將盡快為您審核保留！`);
+                        alert(`借閱小紙條送出成功！✨\n\n書籍：《${currentBook.value.Title}》\n借閱期間：${newReq.StartDate} ～ ${newReq.DueDate} (共 ${diffDays} 天)\n管理員將為您審核保留！`);
                         showReserveModal.value = false;
                         await refreshAllData();
                     } catch (e) {
@@ -810,6 +886,8 @@
                     form.value.readerName = "";
                     form.value.readerPhone = "";
                     form.value.readerLine = "";
+                    form.value.startDate = todayDateStr;
+                    form.value.returnDate = addDays(todayDateStr, 14);
                     form.value.notes = "";
                     showReserveModal.value = true;
                 };
@@ -865,6 +943,7 @@
                     isAdmin, showLoginModal, adminPasswordInput, adminTab,
                     pendingRequests, activeBorrowedList, historyList, bookBorrowRanking,
                     showReserveModal, submitting, currentBook, form,
+                    todayDateStr, maxReturnDateStr, formDaysCount, onStartDateChange, calculateDays,
                     toggleAdminMode, verifyAdminLogin, refreshAllData,
                     approveRequest, rejectRequest, returnBook, submitRequest, openReserveModal,
                     sendLineNotice, getStatusText, getStatusClass, getStatusLabel, formatDateTime,

@@ -3,7 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🌸 暖心手繪書房 ‧ 線上查書與借閱預約 ☕</title>
+    <title>AI圖書館 ‧ 智慧館藏與管理中心</title>
+    
+    <!-- PWA 與桌面 App 圖示設定 -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#2563eb">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="AI圖書館">
+    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/3389/3389032.png">
+    <link rel="icon" type="image/png" href="https://cdn-icons-png.flaticon.com/512/3389/3389032.png">
+
     <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
     <style>
         :root {
@@ -13,9 +23,9 @@
             --text-main: #4A3C31;
             --text-muted: #A08E82;
             --pink: #F48F9D;
-            --green: #74C69D;
-            --yellow: #FDE293;
-            --blue: #A2D2FF;
+            --green: #2E7D32;
+            --admin-blue: #2563eb;
+            --admin-bg: #eff6ff;
         }
 
         * {
@@ -34,26 +44,81 @@
             margin: 0 auto;
         }
 
+        /* 頂部標頭 */
         .header-card {
             background: var(--card-bg);
             border: 2px dashed var(--border-color);
             border-radius: 16px;
-            padding: 20px;
+            padding: 18px 16px;
             text-align: center;
-            margin-bottom: 20px;
+            margin-bottom: 16px;
+            position: relative;
         }
 
         .header-card h1 {
             font-size: 1.35rem;
             color: var(--text-main);
-            margin-bottom: 6px;
+            margin-bottom: 4px;
         }
 
         .header-card p {
-            font-size: 0.9rem;
+            font-size: 0.85rem;
             color: var(--text-muted);
         }
 
+        .admin-toggle-btn {
+            position: absolute;
+            top: 14px;
+            right: 14px;
+            background: #F1F5F9;
+            border: 1px solid #CBD5E1;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            color: #475569;
+            cursor: pointer;
+        }
+
+        .admin-toggle-btn.active {
+            background: #DC2626;
+            color: white;
+            border-color: #DC2626;
+        }
+
+        /* 管理後台模式專屬橫幅 */
+        .admin-banner {
+            background: var(--admin-bg);
+            border: 2px solid var(--admin-blue);
+            border-radius: 14px;
+            padding: 14px;
+            margin-bottom: 16px;
+        }
+
+        .admin-tabs {
+            display: flex;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .admin-tab-btn {
+            flex: 1;
+            padding: 8px;
+            border-radius: 8px;
+            border: 1px solid var(--admin-blue);
+            background: white;
+            color: var(--admin-blue);
+            font-weight: bold;
+            font-size: 0.85rem;
+            cursor: pointer;
+        }
+
+        .admin-tab-btn.active {
+            background: var(--admin-blue);
+            color: white;
+        }
+
+        /* 搜尋與篩選列 */
         .search-box {
             background: var(--card-bg);
             border: 2px dashed var(--border-color);
@@ -84,7 +149,7 @@
             display: flex;
             gap: 8px;
             overflow-x: auto;
-            padding-bottom: 6px;
+            padding-bottom: 4px;
             scrollbar-width: none;
         }
         .category-scroll::-webkit-scrollbar { display: none; }
@@ -106,13 +171,14 @@
             color: white;
         }
 
-        .book-list {
+        /* 卡片設計 */
+        .card-list {
             display: flex;
             flex-direction: column;
             gap: 12px;
         }
 
-        .book-card {
+        .item-card {
             background: var(--card-bg);
             border: 2px dashed var(--border-color);
             border-radius: 14px;
@@ -122,47 +188,55 @@
             gap: 8px;
         }
 
-        .book-title-row {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            gap: 8px;
-        }
-
-        .book-title {
-            font-size: 1.1rem;
-            font-weight: bold;
-            color: var(--text-main);
-        }
-
-        .status-badge {
-            font-size: 0.8rem;
+        .badge {
+            font-size: 0.78rem;
             font-weight: bold;
             padding: 4px 10px;
             border-radius: 12px;
             white-space: nowrap;
         }
 
-        .status-available { background: #E8F5E9; color: #2E7D32; }
-        .status-pending { background: #FFF9C4; color: #F57F17; }
-        .status-borrowed { background: #FFEBEE; color: #C2185B; }
+        .badge-available { background: #E8F5E9; color: #2E7D32; }
+        .badge-pending { background: #FFF9C4; color: #B45309; }
+        .badge-borrowed { background: #FFEBEE; color: #C2185B; }
 
-        .book-meta {
+        .meta-info {
             font-size: 0.85rem;
             color: var(--text-muted);
             display: flex;
             flex-wrap: wrap;
-            gap: 12px;
+            gap: 10px;
         }
 
-        .book-desc {
-            font-size: 0.85rem;
-            color: #6B5B4F;
-            line-height: 1.4;
-            background: #FDF9F3;
-            padding: 8px 10px;
-            border-radius: 8px;
+        .reader-info-box {
+            background: #F8FAFC;
+            border: 1px solid #E2E8F0;
+            border-radius: 10px;
+            padding: 10px 12px;
+            font-size: 0.9rem;
+            line-height: 1.5;
+            color: #1E293B;
         }
+
+        .action-row {
+            display: flex;
+            gap: 8px;
+            margin-top: 6px;
+        }
+
+        .btn-act {
+            flex: 1;
+            padding: 8px;
+            border: none;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+            font-size: 0.88rem;
+        }
+
+        .btn-approve { background: #16A34A; color: white; }
+        .btn-reject { background: #DC2626; color: white; }
+        .btn-return { background: #2563EB; color: white; }
 
         .btn-reserve {
             align-self: flex-end;
@@ -174,13 +248,13 @@
             font-weight: bold;
             font-size: 0.9rem;
             cursor: pointer;
-            margin-top: 4px;
         }
 
+        /* 彈窗 Modal */
         .modal-mask {
             position: fixed;
             top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(0, 0, 0, 0.45);
+            background: rgba(0, 0, 0, 0.5);
             display: flex;
             justify-content: center;
             align-items: center;
@@ -194,15 +268,15 @@
             border-radius: 18px;
             padding: 22px;
             width: 100%;
-            max-width: 480px;
+            max-width: 440px;
             max-height: 90vh;
             overflow-y: auto;
         }
 
         .modal-header {
-            font-size: 1.2rem;
+            font-size: 1.15rem;
             font-weight: bold;
-            color: var(--pink);
+            color: var(--text-main);
             margin-bottom: 12px;
             text-align: center;
         }
@@ -222,87 +296,163 @@
         .btn-group {
             display: flex;
             gap: 10px;
-            margin-top: 18px;
-        }
-
-        .btn-submit {
-            flex: 1;
-            background: var(--pink);
-            color: white;
-            border: none;
-            padding: 12px;
-            border-radius: 12px;
-            font-weight: bold;
-            cursor: pointer;
-        }
-
-        .btn-cancel {
-            background: #E2D9D0;
-            color: var(--text-main);
-            border: none;
-            padding: 12px 18px;
-            border-radius: 12px;
-            font-weight: bold;
-            cursor: pointer;
+            margin-top: 16px;
         }
     </style>
 </head>
 <body>
     <div id="app">
+        <!-- 頂部卡片 -->
         <div class="header-card">
-            <h1>🌸 暖心手繪書房 ‧ 線上書櫃 ☕</h1>
-            <p>點選喜歡的書籍即可填寫小紙條預約借閱唷！</p>
+            <button class="admin-toggle-btn" :class="{ active: isAdmin }" @click="toggleAdminMode">
+                {{ isAdmin ? '🚪 退出後台' : '🔐 管理登入' }}
+            </button>
+            <h1>🌸 暖心手繪書房 ‧ AI圖書館 ☕</h1>
+            <p v-if="!isAdmin">挑選喜歡的愛書，線上填寫借閱小紙條唷！</p>
+            <p v-else style="color: #2563EB; font-weight: bold;">👑 館長專屬工作台（即時掌握申請名單）</p>
         </div>
 
-        <div class="search-box">
-            <input type="text" v-model="searchKeyword" placeholder="🔍 搜尋書名、作者或 ISBN..." />
-            <div class="category-scroll">
-                <button class="cat-chip" :class="{ active: selectedCategory === '全部' }" @click="selectedCategory = '全部'">全部</button>
-                <button v-for="cat in categories" :key="cat" class="cat-chip" :class="{ active: selectedCategory === cat }" @click="selectedCategory = cat">
-                    {{ cat }}
+        <!-- ================= 管理員專屬工作台 ================= -->
+        <div v-if="isAdmin" class="admin-banner">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span style="font-weight: bold; color: var(--admin-blue);">📋 管理面板選單</span>
+                <button @click="refreshAllData" style="background: none; border: none; color: #64748B; cursor: pointer; font-size: 0.85rem;">🔄 重新整理</button>
+            </div>
+            <div class="admin-tabs">
+                <button class="admin-tab-btn" :class="{ active: adminTab === 'pending' }" @click="adminTab = 'pending'">
+                    📥 待審核 ({{ pendingRequests.length }})
+                </button>
+                <button class="admin-tab-btn" :class="{ active: adminTab === 'borrowed' }" @click="adminTab = 'borrowed'">
+                    🎒 借閱中 ({{ activeBorrowedList.length }})
+                </button>
+                <button class="admin-tab-btn" :class="{ active: adminTab === 'history' }" @click="adminTab = 'history'">
+                    📜 歷史紀錄
                 </button>
             </div>
         </div>
 
-        <div class="book-list">
-            <div v-if="loading" style="text-align: center; padding: 30px; color: var(--text-muted);">
-                ✨ 正在翻開書櫃找書中...
+        <!-- 後台清單：待審核小紙條 -->
+        <div v-if="isAdmin && adminTab === 'pending'" class="card-list">
+            <div v-if="pendingRequests.length === 0" style="text-align: center; padding: 40px; color: var(--text-muted);">
+                ✨ 目前沒有等待審核的借閱小紙條唷！
             </div>
-            <div v-else-if="filteredBooks.length === 0" style="text-align: center; padding: 30px; color: var(--text-muted);">
-                🥺 沒有找到相符的書籍耶～
-            </div>
-            <div v-for="book in filteredBooks" :key="book.Id" class="book-card">
-                <div class="book-title-row">
-                    <div class="book-title">《{{ book.Title }}》</div>
-                    <span class="status-badge" :class="getStatusClass(book)">
-                        {{ getStatusText(book) }}
-                    </span>
+            <div v-for="req in pendingRequests" :key="req.RequestId" class="item-card" style="border-color: #FBBF24;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <strong style="font-size: 1.05rem;">《{{ req.BookTitle }}》</strong>
+                    <span class="badge badge-pending">待審核</span>
                 </div>
-                <div class="book-meta">
-                    <span v-if="book.Author">✍️ {{ book.Author }}</span>
-                    <span>🏷️ {{ book.Category }}</span>
-                    <span>📍 架位：{{ book.Location }}</span>
-                    <span>📦 庫存：{{ book.AvailableCopies }}/{{ book.TotalCopies }}</span>
+                <div class="reader-info-box">
+                    <div>👤 借閱人：<strong>{{ req.ReaderName }}</strong></div>
+                    <div>📞 電話：<a :href="'tel:' + req.ReaderPhone" style="color: var(--admin-blue); font-weight: bold;">{{ req.ReaderPhone }}</a></div>
+                    <div v-if="req.ReaderEmail">✉️ 信箱：{{ req.ReaderEmail }}</div>
+                    <div>📅 預定取書：{{ req.ExpectedPickupDate }}</div>
+                    <div v-if="req.Notes" style="color: #64748B;">💬 讀者備註：{{ req.Notes }}</div>
+                    <div style="font-size: 0.8rem; color: #94A3B8; margin-top: 4px;">🕒 申請時間：{{ formatDate(req.RequestDate) }}</div>
                 </div>
-                <div v-if="book.Description" class="book-desc">
-                    {{ book.Description }}
+                <div class="action-row">
+                    <button class="btn-act btn-approve" @click="approveRequest(req)">✅ 核准借出 (保留書籍)</button>
+                    <button class="btn-act btn-reject" @click="rejectRequest(req)">❌ 婉拒</button>
                 </div>
-                <button class="btn-reserve" @click="openReserveModal(book)">
-                    💌 填單借閱 / 預約
-                </button>
             </div>
         </div>
 
-        <div v-if="showModal" class="modal-mask" @click.self="showModal = false">
+        <!-- 後台清單：目前借閱中名單 -->
+        <div v-if="isAdmin && adminTab === 'borrowed'" class="card-list">
+            <div v-if="activeBorrowedList.length === 0" style="text-align: center; padding: 40px; color: var(--text-muted);">
+                🌱 目前所有書籍都好端端地在館內唷！
+            </div>
+            <div v-for="req in activeBorrowedList" :key="req.RequestId" class="item-card" style="border-color: #38BDF8;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <strong style="font-size: 1.05rem;">《{{ req.BookTitle }}》</strong>
+                    <span class="badge badge-borrowed">借出中</span>
+                </div>
+                <div class="reader-info-box">
+                    <div>👤 借閱人：<strong>{{ req.ReaderName }}</strong></div>
+                    <div>📞 聯絡電話：<a :href="'tel:' + req.ReaderPhone" style="color: var(--admin-blue); font-weight: bold;">{{ req.ReaderPhone }}</a></div>
+                    <div>📅 應還日期：<strong>{{ req.DueDate || '未設定' }}</strong></div>
+                </div>
+                <button class="btn-act btn-return" @click="returnBook(req)">📥 辦理歸還入庫 (回補庫存)</button>
+            </div>
+        </div>
+
+        <!-- 後台清單：歷史紀錄 -->
+        <div v-if="isAdmin && adminTab === 'history'" class="card-list">
+            <div v-for="req in historyList" :key="req.RequestId" class="item-card" style="opacity: 0.8;">
+                <div style="display: flex; justify-content: space-between;">
+                    <span>《{{ req.BookTitle }}》- {{ req.ReaderName }}</span>
+                    <span class="badge">{{ getStatusLabel(req.Status) }}</span>
+                </div>
+                <div style="font-size: 0.8rem; color: var(--text-muted);">單號：{{ req.RequestId }}</div>
+            </div>
+        </div>
+
+        <!-- ================= 前台：讀者查書區塊 ================= -->
+        <div v-if="!isAdmin">
+            <div class="search-box">
+                <input type="text" v-model="searchKeyword" placeholder="🔍 搜尋書名、作者或 ISBN..." />
+                <div class="category-scroll">
+                    <button class="cat-chip" :class="{ active: selectedCategory === '全部' }" @click="selectedCategory = '全部'">全部</button>
+                    <button v-for="cat in categories" :key="cat" class="cat-chip" :class="{ active: selectedCategory === cat }" @click="selectedCategory = cat">
+                        {{ cat }}
+                    </button>
+                </div>
+            </div>
+
+            <div class="card-list">
+                <div v-if="loading" style="text-align: center; padding: 30px; color: var(--text-muted);">
+                    ✨ 正在為您翻閱書櫃中...
+                </div>
+                <div v-else-if="filteredBooks.length === 0" style="text-align: center; padding: 30px; color: var(--text-muted);">
+                    🥺 沒有找到相符的書籍耶～
+                </div>
+                <div v-for="book in filteredBooks" :key="book.Id" class="item-card">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;">
+                        <strong style="font-size: 1.05rem;">《{{ book.Title }}》</strong>
+                        <span class="badge" :class="getStatusClass(book)">{{ getStatusText(book) }}</span>
+                    </div>
+                    <div class="meta-info">
+                        <span v-if="book.Author">✍️ {{ book.Author }}</span>
+                        <span>🏷️ {{ book.Category }}</span>
+                        <span>📍 架位：{{ book.Location }}</span>
+                        <span>📦 庫存：{{ book.AvailableCopies }}/{{ book.TotalCopies }}</span>
+                    </div>
+                    <div v-if="book.Description" style="font-size: 0.85rem; color: #6B5B4F; background: #FDF9F3; padding: 8px; border-radius: 8px;">
+                        {{ book.Description }}
+                    </div>
+                    <button class="btn-reserve" @click="openReserveModal(book)">
+                        💌 填單借閱 / 預約
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 密碼登入視窗 -->
+        <div v-if="showLoginModal" class="modal-mask" @click.self="showLoginModal = false">
+            <div class="modal-card">
+                <div class="modal-header">🔐 館長專屬身分驗證</div>
+                <p style="font-size: 0.85rem; color: var(--text-muted); text-align: center; margin-bottom: 14px;">
+                    請輸入管理者密碼以查看借閱人名單
+                </p>
+                <div class="form-group">
+                    <input type="password" v-model="adminPasswordInput" placeholder="請輸入密碼 (預設 8888)" @keyup.enter="verifyAdminLogin" />
+                </div>
+                <div class="btn-group">
+                    <button class="btn-act" style="background: #E2E8F0;" @click="showLoginModal = false">取消</button>
+                    <button class="btn-act btn-approve" @click="verifyAdminLogin">確認進入</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 讀者借閱表單 Modal -->
+        <div v-if="showReserveModal" class="modal-mask" @click.self="showReserveModal = false">
             <div class="modal-card">
                 <div class="modal-header">✍️ 填寫借閱許願小紙條</div>
                 <p style="font-size: 0.9rem; margin-bottom: 14px; text-align: center; color: var(--text-main);">
                     欲借書籍：《{{ currentBook.Title }}》
                 </p>
-
                 <div class="form-group">
                     <label>借閱人姓名 *</label>
-                    <input type="text" v-model="form.readerName" placeholder="請輸入您的姓名" />
+                    <input type="text" v-model="form.readerName" placeholder="請輸入姓名" />
                 </div>
                 <div class="form-group">
                     <label>聯絡電話 *</label>
@@ -320,11 +470,10 @@
                     <label>悄悄話備註 (選填)</label>
                     <textarea rows="2" v-model="form.notes" placeholder="例如：希望能保留至週五取書"></textarea>
                 </div>
-
                 <div class="btn-group">
-                    <button class="btn-cancel" @click="showModal = false">取消</button>
-                    <button class="btn-submit" :disabled="submitting" @click="submitRequest">
-                        {{ submitting ? '送出中...' : '📮 確認送出借閱願望' }}
+                    <button class="btn-act" style="background: #E2E8F0;" @click="showReserveModal = false">取消</button>
+                    <button class="btn-act" style="background: var(--pink); color: white;" :disabled="submitting" @click="submitRequest">
+                        {{ submitting ? '送出中...' : '📮 確認送出' }}
                     </button>
                 </div>
             </div>
@@ -337,13 +486,22 @@
         createApp({
             setup() {
                 const FIREBASE_URL = "https://my-library-sync-default-rtdb.firebaseio.com/";
+                const ADMIN_PIN = "8888"; // 🔐 您的專屬管理密碼
 
                 const books = ref([]);
+                const requests = ref({});
                 const loading = ref(true);
                 const searchKeyword = ref("");
                 const selectedCategory = ref("全部");
 
-                const showModal = ref(false);
+                // 管理員狀態
+                const isAdmin = ref(false);
+                const showLoginModal = ref(false);
+                const adminPasswordInput = ref("");
+                const adminTab = ref("pending");
+
+                // 讀者表單狀態
+                const showReserveModal = ref(false);
                 const submitting = ref(false);
                 const currentBook = ref({});
                 const form = ref({
@@ -354,6 +512,7 @@
                     notes: ""
                 });
 
+                // 載入書籍
                 const fetchBooks = async () => {
                     try {
                         const res = await fetch(`${FIREBASE_URL}books.json`);
@@ -361,49 +520,114 @@
                         if (data) {
                             books.value = Array.isArray(data) ? data.filter(Boolean) : Object.values(data);
                         }
-                    } catch (err) {
-                        console.error("載入失敗:", err);
+                    } catch (e) {
+                        console.error(e);
                     } finally {
                         loading.value = false;
                     }
                 };
 
-                const categories = computed(() => {
-                    const set = new Set(books.value.map(b => b.Category).filter(Boolean));
-                    return Array.from(set);
-                });
+                // 載入所有申請單 (管理員用)
+                const fetchRequests = async () => {
+                    try {
+                        const res = await fetch(`${FIREBASE_URL}requests.json`);
+                        const data = await res.json();
+                        requests.value = data || {};
+                    } catch (e) {
+                        console.error(e);
+                    }
+                };
 
-                const filteredBooks = computed(() => {
-                    const kw = searchKeyword.value.trim().toLowerCase();
-                    return books.value.filter(b => {
-                        const matchCat = selectedCategory.value === "全部" || b.Category === selectedCategory.value;
-                        const matchKw = !kw || 
-                            (b.Title && b.Title.toLowerCase().includes(kw)) ||
-                            (b.Author && b.Author.toLowerCase().includes(kw)) ||
-                            (b.ISBN && b.ISBN.toLowerCase().includes(kw));
-                        return matchCat && matchKw;
+                const refreshAllData = async () => {
+                    await Promise.all([fetchBooks(), fetchRequests()]);
+                };
+
+                // 登入管理員驗證
+                const toggleAdminMode = () => {
+                    if (isAdmin.value) {
+                        isAdmin.value = false;
+                    } else {
+                        adminPasswordInput.value = "";
+                        showLoginModal.value = true;
+                    }
+                };
+
+                const verifyAdminLogin = async () => {
+                    if (adminPasswordInput.value === ADMIN_PIN) {
+                        isAdmin.value = true;
+                        showLoginModal.value = false;
+                        await fetchRequests();
+                    } else {
+                        alert("密碼不正確唷！請重新輸入。");
+                    }
+                };
+
+                // 篩選申請單
+                const requestList = computed(() => Object.values(requests.value));
+                const pendingRequests = computed(() => requestList.value.filter(r => r.Status === 0));
+                const activeBorrowedList = computed(() => requestList.value.filter(r => r.Status === 1));
+                const historyList = computed(() => requestList.value.filter(r => r.Status === 2 || r.Status === 3));
+
+                // 管理員動作：核准借出
+                const approveRequest = async (req) => {
+                    if (!confirm(`確定要核准《${req.BookTitle}》給 ${req.ReaderName} 嗎？`)) return;
+                    req.Status = 1;
+                    req.DueDate = new Date(Date.now() + 86400000 * 14).toISOString().split('T')[0];
+
+                    await fetch(`${FIREBASE_URL}requests/${req.RequestId}.json`, {
+                        method: "PATCH",
+                        body: JSON.stringify({ Status: 1, DueDate: req.DueDate })
                     });
-                });
 
-                const getStatusText = (b) => {
-                    if (b.AvailableCopies > 0) return `🌱 在館可借 (${b.AvailableCopies})`;
-                    return b.Status === 1 ? "🌸 預約審核中" : "🎒 已借出 (可預約)";
+                    // 扣減書籍庫存
+                    const book = books.value.find(b => b.Id === req.BookId);
+                    if (book && book.AvailableCopies > 0) {
+                        book.AvailableCopies -= 1;
+                        if (book.AvailableCopies === 0) book.Status = 2; // 已借出
+                        await fetch(`${FIREBASE_URL}books.json`, {
+                            method: "PUT",
+                            body: JSON.stringify(books.value)
+                        });
+                    }
+                    await refreshAllData();
                 };
 
-                const getStatusClass = (b) => {
-                    if (b.AvailableCopies > 0) return 'status-available';
-                    return b.Status === 1 ? 'status-pending' : 'status-borrowed';
+                // 管理員動作：拒絕申請
+                const rejectRequest = async (req) => {
+                    if (!confirm(`確定要婉拒這筆借閱申請嗎？`)) return;
+                    req.Status = 2;
+                    await fetch(`${FIREBASE_URL}requests/${req.RequestId}.json`, {
+                        method: "PATCH",
+                        body: JSON.stringify({ Status: 2 })
+                    });
+                    await refreshAllData();
                 };
 
-                const openReserveModal = (book) => {
-                    currentBook.value = book;
-                    form.value.readerName = "";
-                    form.value.readerPhone = "";
-                    form.value.readerEmail = "";
-                    form.value.notes = "";
-                    showModal.value = true;
+                // 管理員動作：辦理歸還入庫
+                const returnBook = async (req) => {
+                    if (!confirm(`確認《${req.BookTitle}》已歸還入庫？`)) return;
+                    req.Status = 3;
+                    req.ReturnedDate = new Date().toISOString();
+
+                    await fetch(`${FIREBASE_URL}requests/${req.RequestId}.json`, {
+                        method: "PATCH",
+                        body: JSON.stringify({ Status: 3, ReturnedDate: req.ReturnedDate })
+                    });
+
+                    // 回補庫存
+                    const book = books.value.find(b => b.Id === req.BookId);
+                    if (book) {
+                        book.AvailableCopies = Math.min(book.TotalCopies, book.AvailableCopies + 1);
+                        book.Status = 0; // 在館可借
+                        await fetch(`${FIREBASE_URL}books.json`, {
+                            method: "PUT",
+                            body: JSON.stringify(books.value)
+                        });
+                    }
+                    await refreshAllData();
                 };
 
+                // 讀者送出申請
                 const submitRequest = async () => {
                     if (!form.value.readerName.trim() || !form.value.readerPhone.trim()) {
                         alert("請填寫姓名與聯絡電話唷！🥰");
@@ -430,15 +654,63 @@
                             method: "PUT",
                             body: JSON.stringify(newReq)
                         });
-
-                        alert(`借閱小紙條送出成功！✨\n\n書籍：《${currentBook.value.Title}》\n管理員已收到申請，將為您審核並保留書籍！`);
-                        showModal.value = false;
-                        await fetchBooks();
-                    } catch (err) {
+                        alert(`借閱小紙條送出成功！✨\n\n書籍：《${currentBook.value.Title}》\n管理員已收到申請，將為您審核保留！`);
+                        showReserveModal.value = false;
+                        await refreshAllData();
+                    } catch (e) {
                         alert("送出失敗，請檢查網路連線！");
                     } finally {
                         submitting.value = false;
                     }
+                };
+
+                const openReserveModal = (book) => {
+                    currentBook.value = book;
+                    form.value.readerName = "";
+                    form.value.readerPhone = "";
+                    form.value.readerEmail = "";
+                    form.value.notes = "";
+                    showReserveModal.value = true;
+                };
+
+                const categories = computed(() => {
+                    return Array.from(new Set(books.value.map(b => b.Category).filter(Boolean)));
+                });
+
+                const filteredBooks = computed(() => {
+                    const kw = searchKeyword.value.trim().toLowerCase();
+                    return books.value.filter(b => {
+                        const matchCat = selectedCategory.value === "全部" || b.Category === selectedCategory.value;
+                        const matchKw = !kw || 
+                            (b.Title && b.Title.toLowerCase().includes(kw)) ||
+                            (b.Author && b.Author.toLowerCase().includes(kw)) ||
+                            (b.ISBN && b.ISBN.toLowerCase().includes(kw));
+                        return matchCat && matchKw;
+                    });
+                });
+
+                const getStatusText = (b) => {
+                    if (b.AvailableCopies > 0) return `🌱 在館可借 (${b.AvailableCopies})`;
+                    return b.Status === 1 ? "🌸 預約審核中" : "🎒 已借出 (可預約)";
+                };
+
+                const getStatusClass = (b) => {
+                    if (b.AvailableCopies > 0) return 'badge-available';
+                    return b.Status === 1 ? 'badge-pending' : 'badge-borrowed';
+                };
+
+                const getStatusLabel = (status) => {
+                    if (status === 0) return '待審核';
+                    if (status === 1) return '借出中';
+                    if (status === 2) return '已婉拒';
+                    if (status === 3) return '已歸還';
+                    return '已結束';
+                };
+
+                const formatDate = (isoStr) => {
+                    if (!isoStr) return '';
+                    const d = new Date(isoStr);
+                    return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
                 };
 
                 onMounted(() => {
@@ -447,8 +719,12 @@
 
                 return {
                     books, loading, searchKeyword, selectedCategory, categories, filteredBooks,
-                    showModal, submitting, currentBook, form,
-                    getStatusText, getStatusClass, openReserveModal, submitRequest
+                    isAdmin, showLoginModal, adminPasswordInput, adminTab,
+                    pendingRequests, activeBorrowedList, historyList,
+                    showReserveModal, submitting, currentBook, form,
+                    toggleAdminMode, verifyAdminLogin, refreshAllData,
+                    approveRequest, rejectRequest, returnBook, submitRequest, openReserveModal,
+                    getStatusText, getStatusClass, getStatusLabel, formatDate
                 };
             }
         }).mount('#app');

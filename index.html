@@ -323,12 +323,12 @@
 </head>
 <body>
     <div id="app">
-        <!-- 頂部卡片 -->
+        <!-- 頂部卡片（已移除「暖心手繪書房」） -->
         <div class="header-card">
             <button class="admin-toggle-btn" :class="{ active: isAdmin }" @click="toggleAdminMode">
                 {{ isAdmin ? '🚪 退出後台' : '🔐 管理登入' }}
             </button>
-            <h1>🌸 暖心手繪書房 ‧ 恩典圖書館 ☕</h1>
+            <h1>🌸 恩典圖書館 ☕</h1>
             <p v-if="!isAdmin">挑選喜歡的愛書，線上填寫借閱小紙條唷！</p>
             <p v-else style="color: #2563EB; font-weight: bold;">👑 館長專屬工作台（借還管考與館藏歷程）</p>
         </div>
@@ -379,7 +379,7 @@
             </div>
         </div>
 
-        <!-- 後台分頁 2：目前借閱中名單 (點擊辦理歸還) -->
+        <!-- 後台分頁 2：目前借閱中名單 -->
         <div v-if="isAdmin && adminTab === 'borrowed'" class="card-list">
             <div v-if="activeBorrowedList.length === 0" style="text-align: center; padding: 40px; color: var(--text-muted);">
                 🌱 目前所有書籍都好端端在館內唷！
@@ -398,7 +398,7 @@
             </div>
         </div>
 
-        <!-- 後台分頁 3：借閱次數排行 (了解什麼書被借幾次) -->
+        <!-- 後台分頁 3：借閱次數排行 -->
         <div v-if="isAdmin && adminTab === 'ranking'" class="card-list">
             <div style="background: white; padding: 12px; border-radius: 10px; border: 1px solid var(--border-color); font-size: 0.9rem; color: #475569;">
                 📊 藏書借閱累計排行榜（依借出與歸還記錄即時統計）：
@@ -423,7 +423,7 @@
             </div>
         </div>
 
-        <!-- 後台分頁 4：完整借還履歷 (什麼書什麼時候借出、什麼時候歸還) -->
+        <!-- 後台分頁 4：完整借還履歷 -->
         <div v-if="isAdmin && adminTab === 'history'" class="card-list">
             <div v-if="historyList.length === 0" style="text-align: center; padding: 40px; color: var(--text-muted);">
                 📜 目前尚無借還紀錄。
@@ -452,7 +452,6 @@
                 <input type="text" v-model="searchKeyword" placeholder="🔍 搜尋書名、作者或 ISBN..." />
                 <div class="category-scroll">
                     <button class="cat-chip" :class="{ active: selectedCategory === '全部' }" @click="selectedCategory = '全部'">全部</button>
-                    <!-- 新書專用快速過濾按鈕 -->
                     <button class="cat-chip new-book-filter" :class="{ active: selectedCategory === '新書專區' }" @click="selectedCategory = '新書專區'">
                         ✨ 本月新書 ({{ newBookCount }})
                     </button>
@@ -472,7 +471,6 @@
                 <div v-for="book in filteredBooks" :key="book.Id" class="item-card">
                     <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;">
                         <div>
-                            <!-- 新書自動徽章（入庫 30 天內自動點亮，超過 30 天自動消失） -->
                             <span v-if="isNewBook(book)" class="badge badge-new" style="margin-right: 6px;">
                                 ✨ 新書 (剩 {{ getNewBookDaysLeft(book) }} 天)
                             </span>
@@ -553,7 +551,7 @@
         createApp({
             setup() {
                 const FIREBASE_URL = "https://my-library-sync-default-rtdb.firebaseio.com/";
-                const ADMIN_PIN = "8888"; // 🔐 管理者密碼
+                const ADMIN_PIN = "8888";
 
                 const books = ref([]);
                 const requests = ref({});
@@ -561,13 +559,11 @@
                 const searchKeyword = ref("");
                 const selectedCategory = ref("全部");
 
-                // 管理員狀態
                 const isAdmin = ref(false);
                 const showLoginModal = ref(false);
                 const adminPasswordInput = ref("");
                 const adminTab = ref("pending");
 
-                // 讀者表單狀態
                 const showReserveModal = ref(false);
                 const submitting = ref(false);
                 const currentBook = ref({});
@@ -578,7 +574,6 @@
                     notes: ""
                 });
 
-                // 載入書籍
                 const fetchBooks = async () => {
                     try {
                         const res = await fetch(`${FIREBASE_URL}books.json`);
@@ -593,7 +588,6 @@
                     }
                 };
 
-                // 載入所有借閱申請與履歷
                 const fetchRequests = async () => {
                     try {
                         const res = await fetch(`${FIREBASE_URL}requests.json`);
@@ -608,7 +602,6 @@
                     await Promise.all([fetchBooks(), fetchRequests()]);
                 };
 
-                // 登入管理員驗證
                 const toggleAdminMode = () => {
                     if (isAdmin.value) {
                         isAdmin.value = false;
@@ -628,7 +621,6 @@
                     }
                 };
 
-                // 申請單類別過濾
                 const requestList = computed(() => {
                     const list = Object.values(requests.value);
                     return list.sort((a, b) => new Date(b.RequestDate) - new Date(a.RequestDate));
@@ -637,11 +629,10 @@
                 const activeBorrowedList = computed(() => requestList.value.filter(r => r.Status === 1));
                 const historyList = computed(() => requestList.value.filter(r => r.Status === 2 || r.Status === 3));
 
-                // 管理員：核准借出（記錄精確借出時間）
                 const approveRequest = async (req) => {
                     if (!confirm(`確定要核准《${req.BookTitle}》給 ${req.ReaderName} 嗎？`)) return;
                     req.Status = 1;
-                    req.BorrowDate = new Date().toISOString(); // 記錄借出時間
+                    req.BorrowDate = new Date().toISOString();
                     req.DueDate = new Date(Date.now() + 86400000 * 14).toISOString().split('T')[0];
 
                     await fetch(`${FIREBASE_URL}requests/${req.RequestId}.json`, {
@@ -653,11 +644,10 @@
                         })
                     });
 
-                    // 扣減書籍在庫數量
                     const book = books.value.find(b => b.Id === req.BookId);
                     if (book && book.AvailableCopies > 0) {
                         book.AvailableCopies -= 1;
-                        if (book.AvailableCopies === 0) book.Status = 2; // 已借出
+                        if (book.AvailableCopies === 0) book.Status = 2;
                         await fetch(`${FIREBASE_URL}books.json`, {
                             method: "PUT",
                             body: JSON.stringify(books.value)
@@ -666,7 +656,6 @@
                     await refreshAllData();
                 };
 
-                // 管理員：婉拒申請
                 const rejectRequest = async (req) => {
                     if (!confirm(`確定要婉拒這筆借閱申請嗎？`)) return;
                     req.Status = 2;
@@ -677,11 +666,10 @@
                     await refreshAllData();
                 };
 
-                // 管理員：辦理愛書歸還入庫（記錄歸還時間、加回庫存、重設為在館可借）
                 const returnBook = async (req) => {
                     if (!confirm(`確認讀者 ${req.ReaderName} 已將《${req.BookTitle}》歸還入庫？`)) return;
                     req.Status = 3;
-                    req.ReturnedDate = new Date().toISOString(); // 記錄歸還時間
+                    req.ReturnedDate = new Date().toISOString();
 
                     await fetch(`${FIREBASE_URL}requests/${req.RequestId}.json`, {
                         method: "PATCH",
@@ -691,11 +679,10 @@
                         })
                     });
 
-                    // 恢復在庫數量並將狀態改回在館可借
                     const book = books.value.find(b => b.Id === req.BookId);
                     if (book) {
                         book.AvailableCopies = Math.min(book.TotalCopies, (book.AvailableCopies || 0) + 1);
-                        book.Status = 0; // 0 = 在館可借
+                        book.Status = 0;
                         await fetch(`${FIREBASE_URL}books.json`, {
                             method: "PUT",
                             body: JSON.stringify(books.value)
@@ -705,13 +692,11 @@
                     alert(`《${req.BookTitle}》已成功辦理歸還！在庫數量已恢復為：${book ? book.AvailableCopies : 1} 本。`);
                 };
 
-                // 計算每本書被借了幾次
                 const getBookBorrowCount = (bookId) => {
                     const list = Object.values(requests.value);
                     return list.filter(r => r.BookId === bookId && (r.Status === 1 || r.Status === 3)).length;
                 };
 
-                // 熱門排行榜
                 const bookBorrowRanking = computed(() => {
                     return books.value.map(b => ({
                         book: b,
@@ -719,7 +704,6 @@
                     })).sort((a, b) => b.count - a.count);
                 });
 
-                // 新書判定（入庫 30 天內算新書，超過自動下標籤）
                 const isNewBook = (book) => {
                     if (!book.AddedDate) return false;
                     const added = new Date(book.AddedDate).getTime();
@@ -728,7 +712,6 @@
                     return diffDays >= 0 && diffDays <= 30;
                 };
 
-                // 計算新書展期還剩幾天
                 const getNewBookDaysLeft = (book) => {
                     if (!book.AddedDate) return 0;
                     const added = new Date(book.AddedDate).getTime();
@@ -741,7 +724,6 @@
                     return books.value.filter(b => isNewBook(b)).length;
                 });
 
-                // 讀者送出借閱小紙條
                 const submitRequest = async () => {
                     if (!form.value.readerName.trim() || !form.value.readerPhone.trim()) {
                         alert("請填寫姓名與聯絡電話唷！🥰");
@@ -802,7 +784,6 @@
                     });
                 });
 
-                // 狀態文字：若在庫大於 0 顯示「🌱 在館可借 (數字)」
                 const getStatusText = (b) => {
                     if (b.AvailableCopies > 0) return `🌱 在館可借 (${b.AvailableCopies})`;
                     return b.Status === 1 ? "🌸 預約審核中" : "🎒 已借出 (可預約)";

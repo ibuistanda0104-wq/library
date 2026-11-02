@@ -24,7 +24,7 @@
             --text-muted: #A08E82;
             --pink: #F48F9D;
             --green: #2E7D32;
-            --amber: #D97706;
+            --line-green: #06C755;
             --admin-blue: #2563eb;
             --admin-bg: #eff6ff;
         }
@@ -86,7 +86,6 @@
             border-color: #DC2626;
         }
 
-        /* 管理員工作台樣式 */
         .admin-banner {
             background: var(--admin-bg);
             border: 2px solid var(--admin-blue);
@@ -119,7 +118,6 @@
             color: white;
         }
 
-        /* 搜尋與篩選列 */
         .search-box {
             background: var(--card-bg);
             border: 2px dashed var(--border-color);
@@ -183,7 +181,6 @@
             color: white;
         }
 
-        /* 卡片設計 */
         .card-list {
             display: flex;
             flex-direction: column;
@@ -247,17 +244,24 @@
 
         .btn-act {
             flex: 1;
-            padding: 8px;
+            padding: 9px;
             border: none;
             border-radius: 8px;
             font-weight: bold;
             cursor: pointer;
             font-size: 0.88rem;
+            text-align: center;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
         }
 
         .btn-approve { background: #16A34A; color: white; }
         .btn-reject { background: #DC2626; color: white; }
         .btn-return { background: #2563EB; color: white; }
+        .btn-line { background: var(--line-green); color: white; }
 
         .btn-reserve {
             align-self: flex-end;
@@ -271,7 +275,6 @@
             cursor: pointer;
         }
 
-        /* 彈窗 Modal */
         .modal-mask {
             position: fixed;
             top: 0; left: 0; right: 0; bottom: 0;
@@ -323,14 +326,14 @@
 </head>
 <body>
     <div id="app">
-        <!-- 頂部卡片（已移除「暖心手繪書房」） -->
+        <!-- 頂部卡片 -->
         <div class="header-card">
             <button class="admin-toggle-btn" :class="{ active: isAdmin }" @click="toggleAdminMode">
                 {{ isAdmin ? '🚪 退出後台' : '🔐 管理登入' }}
             </button>
             <h1>🌸 恩典圖書館 ☕</h1>
             <p v-if="!isAdmin">挑選喜歡的愛書，線上填寫借閱小紙條唷！</p>
-            <p v-else style="color: #2563EB; font-weight: bold;">👑 館長專屬工作台（借還管考與館藏歷程）</p>
+            <p v-else style="color: #2563EB; font-weight: bold;">👑 館長專屬工作台（即時借還與 LINE 通知）</p>
         </div>
 
         <!-- ================= 管理員專屬工作台 ================= -->
@@ -368,13 +371,16 @@
                 <div class="reader-info-box">
                     <div>👤 借閱人：<strong>{{ req.ReaderName }}</strong></div>
                     <div>📞 電話：<a :href="'tel:' + req.ReaderPhone" style="color: var(--admin-blue); font-weight: bold;">{{ req.ReaderPhone }}</a></div>
+                    <div v-if="req.ReaderLine">💬 LINE：<strong>{{ req.ReaderLine }}</strong></div>
                     <div>📅 預定取書：{{ req.ExpectedPickupDate }}</div>
                     <div v-if="req.Notes" style="color: #64748B;">💬 讀者備註：{{ req.Notes }}</div>
                     <div style="font-size: 0.8rem; color: #94A3B8; margin-top: 4px;">🕒 申請時間：{{ formatDateTime(req.RequestDate) }}</div>
                 </div>
                 <div class="action-row">
-                    <button class="btn-act btn-approve" @click="approveRequest(req)">✅ 核准借出 (登記借出時間)</button>
-                    <button class="btn-act btn-reject" @click="rejectRequest(req)">❌ 婉拒</button>
+                    <button class="btn-act btn-approve" @click="approveRequest(req)">✅ 核准借出</button>
+                    <!-- 📲 一鍵喚醒 LINE 發送取書通知 -->
+                    <button class="btn-act btn-line" @click="sendLineNotice(req, 'pickup')">📲 LINE 通知取書</button>
+                    <button class="btn-act btn-reject" style="max-width: 80px;" @click="rejectRequest(req)">婉拒</button>
                 </div>
             </div>
         </div>
@@ -391,10 +397,15 @@
                 </div>
                 <div class="reader-info-box">
                     <div>👤 借閱人：<strong>{{ req.ReaderName }}</strong> (📞 <a :href="'tel:' + req.ReaderPhone">{{ req.ReaderPhone }}</a>)</div>
+                    <div v-if="req.ReaderLine">💬 LINE：<strong>{{ req.ReaderLine }}</strong></div>
                     <div>🕒 借出時間：<strong style="color: #2563EB;">{{ formatDateTime(req.BorrowDate || req.RequestDate) }}</strong></div>
                     <div>📅 應還日期：<strong>{{ req.DueDate || '未設定' }}</strong></div>
                 </div>
-                <button class="btn-act btn-return" @click="returnBook(req)">📥 辦理愛書歸還入庫 (回補庫存並恢復在館狀態)</button>
+                <div class="action-row">
+                    <button class="btn-act btn-return" @click="returnBook(req)">📥 辦理歸還入庫</button>
+                    <!-- 📲 LINE 還書提醒 -->
+                    <button class="btn-act btn-line" @click="sendLineNotice(req, 'remind')">📲 LINE 溫馨提醒</button>
+                </div>
             </div>
         </div>
 
@@ -528,6 +539,10 @@
                     <input type="tel" v-model="form.readerPhone" placeholder="例如：0912-345-678" />
                 </div>
                 <div class="form-group">
+                    <label>LINE 暱稱或 ID (選填，方便通知取書)</label>
+                    <input type="text" v-model="form.readerLine" placeholder="例如：小明 或 ming123" />
+                </div>
+                <div class="form-group">
                     <label>預定取書日</label>
                     <input type="date" v-model="form.pickupDate" />
                 </div>
@@ -570,6 +585,7 @@
                 const form = ref({
                     readerName: "",
                     readerPhone: "",
+                    readerLine: "",
                     pickupDate: new Date(Date.now() + 86400000 * 2).toISOString().split('T')[0],
                     notes: ""
                 });
@@ -629,6 +645,31 @@
                 const activeBorrowedList = computed(() => requestList.value.filter(r => r.Status === 1));
                 const historyList = computed(() => requestList.value.filter(r => r.Status === 2 || r.Status === 3));
 
+                // 📲 一鍵喚醒手機 LINE 傳送通知核心方法
+                const sendLineNotice = (req, type) => {
+                    let msg = "";
+                    const dueDateStr = req.DueDate || new Date(Date.now() + 86400000 * 14).toISOString().split('T')[0];
+
+                    if (type === 'pickup') {
+                        msg = `🌸【恩典圖書館 ‧ 借閱核准取書通知】\n\n` +
+                              `${req.ReaderName} 平安！\n` +
+                              `您預約借閱的愛書已經為您保留核准囉！✨\n\n` +
+                              `📖 借閱書籍：《${req.BookTitle}》\n` +
+                              `📅 預定取書：${req.ExpectedPickupDate}\n` +
+                              `🎒 應還日期：${dueDateStr}\n\n` +
+                              `請於預定時間前往取書，願您閱讀蒙福、收穫滿滿！☕`;
+                    } else if (type === 'remind') {
+                        msg = `🌸【恩典圖書館 ‧ 還書溫馨提醒】\n\n` +
+                              `${req.ReaderName} 平安！\n` +
+                              `您所借閱的《${req.BookTitle}》即將於 ${req.DueDate || '近期'} 到期囉。\n\n` +
+                              `若已閱讀完畢，歡迎於開館時間帶回歸還入庫，謝謝您的愛護與配合！🌱`;
+                    }
+
+                    // 喚起手機 LINE 轉發介面
+                    const lineUrl = `https://line.me/R/share?text=${encodeURIComponent(msg)}`;
+                    window.open(lineUrl, '_blank');
+                };
+
                 const approveRequest = async (req) => {
                     if (!confirm(`確定要核准《${req.BookTitle}》給 ${req.ReaderName} 嗎？`)) return;
                     req.Status = 1;
@@ -654,6 +695,10 @@
                         });
                     }
                     await refreshAllData();
+
+                    if (confirm(`借閱已核准！🎉\n是否要立即透過 LINE 發送取書通知給 ${req.ReaderName}？`)) {
+                        sendLineNotice(req, 'pickup');
+                    }
                 };
 
                 const rejectRequest = async (req) => {
@@ -738,6 +783,7 @@
                         ISBN: currentBook.value.ISBN || "",
                         ReaderName: form.value.readerName.trim(),
                         ReaderPhone: form.value.readerPhone.trim(),
+                        ReaderLine: form.value.readerLine.trim(),
                         RequestDate: new Date().toISOString(),
                         ExpectedPickupDate: form.value.pickupDate,
                         Notes: form.value.notes.trim(),
@@ -763,6 +809,7 @@
                     currentBook.value = book;
                     form.value.readerName = "";
                     form.value.readerPhone = "";
+                    form.value.readerLine = "";
                     form.value.notes = "";
                     showReserveModal.value = true;
                 };
@@ -820,7 +867,7 @@
                     showReserveModal, submitting, currentBook, form,
                     toggleAdminMode, verifyAdminLogin, refreshAllData,
                     approveRequest, rejectRequest, returnBook, submitRequest, openReserveModal,
-                    getStatusText, getStatusClass, getStatusLabel, formatDateTime,
+                    sendLineNotice, getStatusText, getStatusClass, getStatusLabel, formatDateTime,
                     getBookBorrowCount, isNewBook, getNewBookDaysLeft, newBookCount
                 };
             }

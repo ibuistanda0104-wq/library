@@ -24,6 +24,7 @@
             --text-muted: #A08E82;
             --pink: #F48F9D;
             --green: #2E7D32;
+            --amber: #D97706;
             --admin-blue: #2563eb;
             --admin-bg: #eff6ff;
         }
@@ -40,7 +41,7 @@
             background-color: var(--bg-color);
             color: var(--text-main);
             padding: 16px;
-            max-width: 860px;
+            max-width: 900px;
             margin: 0 auto;
         }
 
@@ -85,6 +86,7 @@
             border-color: #DC2626;
         }
 
+        /* 管理員工作台樣式 */
         .admin-banner {
             background: var(--admin-bg);
             border: 2px solid var(--admin-blue);
@@ -94,21 +96,22 @@
         }
 
         .admin-tabs {
-            display: flex;
-            gap: 8px;
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 6px;
             margin-top: 10px;
         }
 
         .admin-tab-btn {
-            flex: 1;
-            padding: 8px;
+            padding: 8px 4px;
             border-radius: 8px;
             border: 1px solid var(--admin-blue);
             background: white;
             color: var(--admin-blue);
             font-weight: bold;
-            font-size: 0.85rem;
+            font-size: 0.8rem;
             cursor: pointer;
+            text-align: center;
         }
 
         .admin-tab-btn.active {
@@ -116,6 +119,7 @@
             color: white;
         }
 
+        /* 搜尋與篩選列 */
         .search-box {
             background: var(--card-bg);
             border: 2px dashed var(--border-color);
@@ -168,6 +172,18 @@
             color: white;
         }
 
+        .cat-chip.new-book-filter {
+            background: #FEF3C7;
+            color: #92400E;
+            border: 1px solid #FCD34D;
+        }
+
+        .cat-chip.new-book-filter.active {
+            background: #F59E0B;
+            color: white;
+        }
+
+        /* 卡片設計 */
         .card-list {
             display: flex;
             flex-direction: column;
@@ -195,6 +211,15 @@
         .badge-available { background: #E8F5E9; color: #2E7D32; }
         .badge-pending { background: #FFF9C4; color: #B45309; }
         .badge-borrowed { background: #FFEBEE; color: #C2185B; }
+        
+        .badge-new {
+            background: linear-gradient(135deg, #FF6B6B, #FF8E53);
+            color: white;
+            box-shadow: 0 2px 4px rgba(255, 107, 107, 0.3);
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
+        }
 
         .meta-info {
             font-size: 0.85rem;
@@ -210,7 +235,7 @@
             border-radius: 10px;
             padding: 10px 12px;
             font-size: 0.9rem;
-            line-height: 1.5;
+            line-height: 1.6;
             color: #1E293B;
         }
 
@@ -246,6 +271,7 @@
             cursor: pointer;
         }
 
+        /* 彈窗 Modal */
         .modal-mask {
             position: fixed;
             top: 0; left: 0; right: 0; bottom: 0;
@@ -263,7 +289,7 @@
             border-radius: 18px;
             padding: 22px;
             width: 100%;
-            max-width: 440px;
+            max-width: 460px;
             max-height: 90vh;
             overflow-y: auto;
         }
@@ -304,13 +330,13 @@
             </button>
             <h1>🌸 暖心手繪書房 ‧ 恩典圖書館 ☕</h1>
             <p v-if="!isAdmin">挑選喜歡的愛書，線上填寫借閱小紙條唷！</p>
-            <p v-else style="color: #2563EB; font-weight: bold;">👑 館長專屬工作台（恩典圖書館管理收件）</p>
+            <p v-else style="color: #2563EB; font-weight: bold;">👑 館長專屬工作台（借還管考與館藏歷程）</p>
         </div>
 
-        <!-- 管理員工作台 -->
+        <!-- ================= 管理員專屬工作台 ================= -->
         <div v-if="isAdmin" class="admin-banner">
             <div style="display: flex; justify-content: space-between; align-items: center;">
-                <span style="font-weight: bold; color: var(--admin-blue);">📋 管理面板選單</span>
+                <span style="font-weight: bold; color: var(--admin-blue);">📋 館長工作台選單</span>
                 <button @click="refreshAllData" style="background: none; border: none; color: #64748B; cursor: pointer; font-size: 0.85rem;">🔄 重新整理</button>
             </div>
             <div class="admin-tabs">
@@ -320,13 +346,16 @@
                 <button class="admin-tab-btn" :class="{ active: adminTab === 'borrowed' }" @click="adminTab = 'borrowed'">
                     🎒 借閱中 ({{ activeBorrowedList.length }})
                 </button>
+                <button class="admin-tab-btn" :class="{ active: adminTab === 'ranking' }" @click="adminTab = 'ranking'">
+                    📊 熱門次數
+                </button>
                 <button class="admin-tab-btn" :class="{ active: adminTab === 'history' }" @click="adminTab = 'history'">
-                    📜 歷史紀錄
+                    📜 借還履歷
                 </button>
             </div>
         </div>
 
-        <!-- 待審核小紙條 -->
+        <!-- 後台分頁 1：待審核小紙條 -->
         <div v-if="isAdmin && adminTab === 'pending'" class="card-list">
             <div v-if="pendingRequests.length === 0" style="text-align: center; padding: 40px; color: var(--text-muted);">
                 ✨ 目前沒有等待審核的借閱小紙條唷！
@@ -339,22 +368,21 @@
                 <div class="reader-info-box">
                     <div>👤 借閱人：<strong>{{ req.ReaderName }}</strong></div>
                     <div>📞 電話：<a :href="'tel:' + req.ReaderPhone" style="color: var(--admin-blue); font-weight: bold;">{{ req.ReaderPhone }}</a></div>
-                    <div v-if="req.ReaderEmail">✉️ 信箱：{{ req.ReaderEmail }}</div>
                     <div>📅 預定取書：{{ req.ExpectedPickupDate }}</div>
                     <div v-if="req.Notes" style="color: #64748B;">💬 讀者備註：{{ req.Notes }}</div>
-                    <div style="font-size: 0.8rem; color: #94A3B8; margin-top: 4px;">🕒 申請時間：{{ formatDate(req.RequestDate) }}</div>
+                    <div style="font-size: 0.8rem; color: #94A3B8; margin-top: 4px;">🕒 申請時間：{{ formatDateTime(req.RequestDate) }}</div>
                 </div>
                 <div class="action-row">
-                    <button class="btn-act btn-approve" @click="approveRequest(req)">✅ 核准借出 (保留書籍)</button>
+                    <button class="btn-act btn-approve" @click="approveRequest(req)">✅ 核准借出 (登記借出時間)</button>
                     <button class="btn-act btn-reject" @click="rejectRequest(req)">❌ 婉拒</button>
                 </div>
             </div>
         </div>
 
-        <!-- 目前借閱中名單 -->
+        <!-- 後台分頁 2：目前借閱中名單 (點擊辦理歸還) -->
         <div v-if="isAdmin && adminTab === 'borrowed'" class="card-list">
             <div v-if="activeBorrowedList.length === 0" style="text-align: center; padding: 40px; color: var(--text-muted);">
-                🌱 目前所有書籍都好端端地在館內唷！
+                🌱 目前所有書籍都好端端在館內唷！
             </div>
             <div v-for="req in activeBorrowedList" :key="req.RequestId" class="item-card" style="border-color: #38BDF8;">
                 <div style="display: flex; justify-content: space-between; align-items: center;">
@@ -362,31 +390,72 @@
                     <span class="badge badge-borrowed">借出中</span>
                 </div>
                 <div class="reader-info-box">
-                    <div>👤 借閱人：<strong>{{ req.ReaderName }}</strong></div>
-                    <div>📞 聯絡電話：<a :href="'tel:' + req.ReaderPhone" style="color: var(--admin-blue); font-weight: bold;">{{ req.ReaderPhone }}</a></div>
+                    <div>👤 借閱人：<strong>{{ req.ReaderName }}</strong> (📞 <a :href="'tel:' + req.ReaderPhone">{{ req.ReaderPhone }}</a>)</div>
+                    <div>🕒 借出時間：<strong style="color: #2563EB;">{{ formatDateTime(req.BorrowDate || req.RequestDate) }}</strong></div>
                     <div>📅 應還日期：<strong>{{ req.DueDate || '未設定' }}</strong></div>
                 </div>
-                <button class="btn-act btn-return" @click="returnBook(req)">📥 辦理歸還入庫 (回補庫存)</button>
+                <button class="btn-act btn-return" @click="returnBook(req)">📥 辦理愛書歸還入庫 (回補庫存並恢復在館狀態)</button>
             </div>
         </div>
 
-        <!-- 歷史紀錄 -->
-        <div v-if="isAdmin && adminTab === 'history'" class="card-list">
-            <div v-for="req in historyList" :key="req.RequestId" class="item-card" style="opacity: 0.8;">
-                <div style="display: flex; justify-content: space-between;">
-                    <span>《{{ req.BookTitle }}》- {{ req.ReaderName }}</span>
-                    <span class="badge">{{ getStatusLabel(req.Status) }}</span>
+        <!-- 後台分頁 3：借閱次數排行 (了解什麼書被借幾次) -->
+        <div v-if="isAdmin && adminTab === 'ranking'" class="card-list">
+            <div style="background: white; padding: 12px; border-radius: 10px; border: 1px solid var(--border-color); font-size: 0.9rem; color: #475569;">
+                📊 藏書借閱累計排行榜（依借出與歸還記錄即時統計）：
+            </div>
+            <div v-for="(item, idx) in bookBorrowRanking" :key="item.book.Id" class="item-card">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <span style="font-weight: bold; margin-right: 6px;" :style="{ color: idx < 3 ? '#DC2626' : '#64748B' }">
+                            #{{ idx + 1 }}
+                        </span>
+                        <strong>《{{ item.book.Title }}》</strong>
+                    </div>
+                    <span class="badge" style="background: #E0E7FF; color: #3730A3; font-size: 0.85rem;">
+                        🔥 被借 {{ item.count }} 次
+                    </span>
                 </div>
-                <div style="font-size: 0.8rem; color: var(--text-muted);">單號：{{ req.RequestId }}</div>
+                <div class="meta-info">
+                    <span>分類：{{ item.book.Category }}</span>
+                    <span>目前庫存：{{ item.book.AvailableCopies }}/{{ item.book.TotalCopies }}</span>
+                    <span v-if="isNewBook(item.book)" class="badge badge-new">✨ 展出中新書</span>
+                </div>
             </div>
         </div>
 
-        <!-- 前台：讀者查書區塊 -->
+        <!-- 後台分頁 4：完整借還履歷 (什麼書什麼時候借出、什麼時候歸還) -->
+        <div v-if="isAdmin && adminTab === 'history'" class="card-list">
+            <div v-if="historyList.length === 0" style="text-align: center; padding: 40px; color: var(--text-muted);">
+                📜 目前尚無借還紀錄。
+            </div>
+            <div v-for="req in historyList" :key="req.RequestId" class="item-card">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <strong style="font-size: 1.05rem;">《{{ req.BookTitle }}》</strong>
+                    <span class="badge" :style="req.Status === 3 ? 'background:#DCFCE7; color:#166534;' : 'background:#F1F5F9; color:#475569;'">
+                        {{ getStatusLabel(req.Status) }}
+                    </span>
+                </div>
+                <div class="reader-info-box">
+                    <div>👤 借閱人：{{ req.ReaderName }} ({{ req.ReaderPhone }})</div>
+                    <div>📤 借出時間：<strong>{{ formatDateTime(req.BorrowDate || req.RequestDate) }}</strong></div>
+                    <div v-if="req.ReturnedDate">
+                        📥 歸還時間：<strong style="color: #16A34A;">{{ formatDateTime(req.ReturnedDate) }}</strong>
+                    </div>
+                    <div v-if="req.AdminRemark" style="font-size: 0.8rem; color: #64748B;">備註：{{ req.AdminRemark }}</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ================= 前台：讀者查書區塊 ================= -->
         <div v-if="!isAdmin">
             <div class="search-box">
                 <input type="text" v-model="searchKeyword" placeholder="🔍 搜尋書名、作者或 ISBN..." />
                 <div class="category-scroll">
                     <button class="cat-chip" :class="{ active: selectedCategory === '全部' }" @click="selectedCategory = '全部'">全部</button>
+                    <!-- 新書專用快速過濾按鈕 -->
+                    <button class="cat-chip new-book-filter" :class="{ active: selectedCategory === '新書專區' }" @click="selectedCategory = '新書專區'">
+                        ✨ 本月新書 ({{ newBookCount }})
+                    </button>
                     <button v-for="cat in categories" :key="cat" class="cat-chip" :class="{ active: selectedCategory === cat }" @click="selectedCategory = cat">
                         {{ cat }}
                     </button>
@@ -402,14 +471,21 @@
                 </div>
                 <div v-for="book in filteredBooks" :key="book.Id" class="item-card">
                     <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;">
-                        <strong style="font-size: 1.05rem;">《{{ book.Title }}》</strong>
+                        <div>
+                            <!-- 新書自動徽章（入庫 30 天內自動點亮，超過 30 天自動消失） -->
+                            <span v-if="isNewBook(book)" class="badge badge-new" style="margin-right: 6px;">
+                                ✨ 新書 (剩 {{ getNewBookDaysLeft(book) }} 天)
+                            </span>
+                            <strong style="font-size: 1.05rem;">《{{ book.Title }}》</strong>
+                        </div>
                         <span class="badge" :class="getStatusClass(book)">{{ getStatusText(book) }}</span>
                     </div>
                     <div class="meta-info">
                         <span v-if="book.Author">✍️ {{ book.Author }}</span>
                         <span>🏷️ {{ book.Category }}</span>
                         <span>📍 架位：{{ book.Location }}</span>
-                        <span>📦 庫存：{{ book.AvailableCopies }}/{{ book.TotalCopies }}</span>
+                        <span>📦 總庫存：{{ book.TotalCopies }} 本</span>
+                        <span>🔥 累計借閱：{{ getBookBorrowCount(book.Id) }} 次</span>
                     </div>
                     <div v-if="book.Description" style="font-size: 0.85rem; color: #6B5B4F; background: #FDF9F3; padding: 8px; border-radius: 8px;">
                         {{ book.Description }}
@@ -426,7 +502,7 @@
             <div class="modal-card">
                 <div class="modal-header">🔐 館長專屬身分驗證</div>
                 <p style="font-size: 0.85rem; color: var(--text-muted); text-align: center; margin-bottom: 14px;">
-                    請輸入管理者密碼以查看借閱人名單
+                    請輸入管理者密碼以查看借閱人名單與借還歷史
                 </p>
                 <div class="form-group">
                     <input type="password" v-model="adminPasswordInput" placeholder="請輸入密碼" @keyup.enter="verifyAdminLogin" />
@@ -452,10 +528,6 @@
                 <div class="form-group">
                     <label>聯絡電話 *</label>
                     <input type="tel" v-model="form.readerPhone" placeholder="例如：0912-345-678" />
-                </div>
-                <div class="form-group">
-                    <label>電子信箱 (選填)</label>
-                    <input type="email" v-model="form.readerEmail" placeholder="your@email.com" />
                 </div>
                 <div class="form-group">
                     <label>預定取書日</label>
@@ -489,22 +561,24 @@
                 const searchKeyword = ref("");
                 const selectedCategory = ref("全部");
 
+                // 管理員狀態
                 const isAdmin = ref(false);
                 const showLoginModal = ref(false);
                 const adminPasswordInput = ref("");
                 const adminTab = ref("pending");
 
+                // 讀者表單狀態
                 const showReserveModal = ref(false);
                 const submitting = ref(false);
                 const currentBook = ref({});
                 const form = ref({
                     readerName: "",
                     readerPhone: "",
-                    readerEmail: "",
                     pickupDate: new Date(Date.now() + 86400000 * 2).toISOString().split('T')[0],
                     notes: ""
                 });
 
+                // 載入書籍
                 const fetchBooks = async () => {
                     try {
                         const res = await fetch(`${FIREBASE_URL}books.json`);
@@ -519,6 +593,7 @@
                     }
                 };
 
+                // 載入所有借閱申請與履歷
                 const fetchRequests = async () => {
                     try {
                         const res = await fetch(`${FIREBASE_URL}requests.json`);
@@ -533,6 +608,7 @@
                     await Promise.all([fetchBooks(), fetchRequests()]);
                 };
 
+                // 登入管理員驗證
                 const toggleAdminMode = () => {
                     if (isAdmin.value) {
                         isAdmin.value = false;
@@ -552,25 +628,36 @@
                     }
                 };
 
-                const requestList = computed(() => Object.values(requests.value));
+                // 申請單類別過濾
+                const requestList = computed(() => {
+                    const list = Object.values(requests.value);
+                    return list.sort((a, b) => new Date(b.RequestDate) - new Date(a.RequestDate));
+                });
                 const pendingRequests = computed(() => requestList.value.filter(r => r.Status === 0));
                 const activeBorrowedList = computed(() => requestList.value.filter(r => r.Status === 1));
                 const historyList = computed(() => requestList.value.filter(r => r.Status === 2 || r.Status === 3));
 
+                // 管理員：核准借出（記錄精確借出時間）
                 const approveRequest = async (req) => {
                     if (!confirm(`確定要核准《${req.BookTitle}》給 ${req.ReaderName} 嗎？`)) return;
                     req.Status = 1;
+                    req.BorrowDate = new Date().toISOString(); // 記錄借出時間
                     req.DueDate = new Date(Date.now() + 86400000 * 14).toISOString().split('T')[0];
 
                     await fetch(`${FIREBASE_URL}requests/${req.RequestId}.json`, {
                         method: "PATCH",
-                        body: JSON.stringify({ Status: 1, DueDate: req.DueDate })
+                        body: JSON.stringify({
+                            Status: 1,
+                            BorrowDate: req.BorrowDate,
+                            DueDate: req.DueDate
+                        })
                     });
 
+                    // 扣減書籍在庫數量
                     const book = books.value.find(b => b.Id === req.BookId);
                     if (book && book.AvailableCopies > 0) {
                         book.AvailableCopies -= 1;
-                        if (book.AvailableCopies === 0) book.Status = 2;
+                        if (book.AvailableCopies === 0) book.Status = 2; // 已借出
                         await fetch(`${FIREBASE_URL}books.json`, {
                             method: "PUT",
                             body: JSON.stringify(books.value)
@@ -579,6 +666,7 @@
                     await refreshAllData();
                 };
 
+                // 管理員：婉拒申請
                 const rejectRequest = async (req) => {
                     if (!confirm(`確定要婉拒這筆借閱申請嗎？`)) return;
                     req.Status = 2;
@@ -589,28 +677,71 @@
                     await refreshAllData();
                 };
 
+                // 管理員：辦理愛書歸還入庫（記錄歸還時間、加回庫存、重設為在館可借）
                 const returnBook = async (req) => {
-                    if (!confirm(`確認《${req.BookTitle}》已歸還入庫？`)) return;
+                    if (!confirm(`確認讀者 ${req.ReaderName} 已將《${req.BookTitle}》歸還入庫？`)) return;
                     req.Status = 3;
-                    req.ReturnedDate = new Date().toISOString();
+                    req.ReturnedDate = new Date().toISOString(); // 記錄歸還時間
 
                     await fetch(`${FIREBASE_URL}requests/${req.RequestId}.json`, {
                         method: "PATCH",
-                        body: JSON.stringify({ Status: 3, ReturnedDate: req.ReturnedDate })
+                        body: JSON.stringify({
+                            Status: 3,
+                            ReturnedDate: req.ReturnedDate
+                        })
                     });
 
+                    // 恢復在庫數量並將狀態改回在館可借
                     const book = books.value.find(b => b.Id === req.BookId);
                     if (book) {
-                        book.AvailableCopies = Math.min(book.TotalCopies, book.AvailableCopies + 1);
-                        book.Status = 0;
+                        book.AvailableCopies = Math.min(book.TotalCopies, (book.AvailableCopies || 0) + 1);
+                        book.Status = 0; // 0 = 在館可借
                         await fetch(`${FIREBASE_URL}books.json`, {
                             method: "PUT",
                             body: JSON.stringify(books.value)
                         });
                     }
                     await refreshAllData();
+                    alert(`《${req.BookTitle}》已成功辦理歸還！在庫數量已恢復為：${book ? book.AvailableCopies : 1} 本。`);
                 };
 
+                // 計算每本書被借了幾次
+                const getBookBorrowCount = (bookId) => {
+                    const list = Object.values(requests.value);
+                    return list.filter(r => r.BookId === bookId && (r.Status === 1 || r.Status === 3)).length;
+                };
+
+                // 熱門排行榜
+                const bookBorrowRanking = computed(() => {
+                    return books.value.map(b => ({
+                        book: b,
+                        count: getBookBorrowCount(b.Id)
+                    })).sort((a, b) => b.count - a.count);
+                });
+
+                // 新書判定（入庫 30 天內算新書，超過自動下標籤）
+                const isNewBook = (book) => {
+                    if (!book.AddedDate) return false;
+                    const added = new Date(book.AddedDate).getTime();
+                    const now = new Date().getTime();
+                    const diffDays = (now - added) / (1000 * 3600 * 24);
+                    return diffDays >= 0 && diffDays <= 30;
+                };
+
+                // 計算新書展期還剩幾天
+                const getNewBookDaysLeft = (book) => {
+                    if (!book.AddedDate) return 0;
+                    const added = new Date(book.AddedDate).getTime();
+                    const now = new Date().getTime();
+                    const diffDays = Math.floor((now - added) / (1000 * 3600 * 24));
+                    return Math.max(0, 30 - diffDays);
+                };
+
+                const newBookCount = computed(() => {
+                    return books.value.filter(b => isNewBook(b)).length;
+                });
+
+                // 讀者送出借閱小紙條
                 const submitRequest = async () => {
                     if (!form.value.readerName.trim() || !form.value.readerPhone.trim()) {
                         alert("請填寫姓名與聯絡電話唷！🥰");
@@ -625,7 +756,6 @@
                         ISBN: currentBook.value.ISBN || "",
                         ReaderName: form.value.readerName.trim(),
                         ReaderPhone: form.value.readerPhone.trim(),
-                        ReaderEmail: form.value.readerEmail.trim(),
                         RequestDate: new Date().toISOString(),
                         ExpectedPickupDate: form.value.pickupDate,
                         Notes: form.value.notes.trim(),
@@ -637,7 +767,7 @@
                             method: "PUT",
                             body: JSON.stringify(newReq)
                         });
-                        alert(`借閱小紙條送出成功！✨\n\n書籍：《${currentBook.value.Title}》\n恩典圖書館管理員已收到申請，將為您審核保留！`);
+                        alert(`借閱小紙條送出成功！✨\n\n書籍：《${currentBook.value.Title}》\n管理員將盡快為您審核保留！`);
                         showReserveModal.value = false;
                         await refreshAllData();
                     } catch (e) {
@@ -651,7 +781,6 @@
                     currentBook.value = book;
                     form.value.readerName = "";
                     form.value.readerPhone = "";
-                    form.value.readerEmail = "";
                     form.value.notes = "";
                     showReserveModal.value = true;
                 };
@@ -663,7 +792,8 @@
                 const filteredBooks = computed(() => {
                     const kw = searchKeyword.value.trim().toLowerCase();
                     return books.value.filter(b => {
-                        const matchCat = selectedCategory.value === "全部" || b.Category === selectedCategory.value;
+                        const matchCat = (selectedCategory.value === "全部") ||
+                            (selectedCategory.value === "新書專區" ? isNewBook(b) : b.Category === selectedCategory.value);
                         const matchKw = !kw || 
                             (b.Title && b.Title.toLowerCase().includes(kw)) ||
                             (b.Author && b.Author.toLowerCase().includes(kw)) ||
@@ -672,6 +802,7 @@
                     });
                 });
 
+                // 狀態文字：若在庫大於 0 顯示「🌱 在館可借 (數字)」
                 const getStatusText = (b) => {
                     if (b.AvailableCopies > 0) return `🌱 在館可借 (${b.AvailableCopies})`;
                     return b.Status === 1 ? "🌸 預約審核中" : "🎒 已借出 (可預約)";
@@ -686,28 +817,30 @@
                     if (status === 0) return '待審核';
                     if (status === 1) return '借出中';
                     if (status === 2) return '已婉拒';
-                    if (status === 3) return '已歸還';
+                    if (status === 3) return '已完成歸還';
                     return '已結束';
                 };
 
-                const formatDate = (isoStr) => {
-                    if (!isoStr) return '';
+                const formatDateTime = (isoStr) => {
+                    if (!isoStr) return '無記錄';
                     const d = new Date(isoStr);
-                    return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+                    return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
                 };
 
                 onMounted(() => {
                     fetchBooks();
+                    fetchRequests();
                 });
 
                 return {
                     books, loading, searchKeyword, selectedCategory, categories, filteredBooks,
                     isAdmin, showLoginModal, adminPasswordInput, adminTab,
-                    pendingRequests, activeBorrowedList, historyList,
+                    pendingRequests, activeBorrowedList, historyList, bookBorrowRanking,
                     showReserveModal, submitting, currentBook, form,
                     toggleAdminMode, verifyAdminLogin, refreshAllData,
                     approveRequest, rejectRequest, returnBook, submitRequest, openReserveModal,
-                    getStatusText, getStatusClass, getStatusLabel, formatDate
+                    getStatusText, getStatusClass, getStatusLabel, formatDateTime,
+                    getBookBorrowCount, isNewBook, getNewBookDaysLeft, newBookCount
                 };
             }
         }).mount('#app');

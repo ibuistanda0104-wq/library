@@ -266,6 +266,7 @@
         .btn-return { background: #2563EB; color: white; }
         .btn-renew { background: var(--purple); color: white; }
         .btn-notice { background: #D97706; color: white; }
+        .btn-edit { background: #0284C7; color: white; }
 
         .btn-reserve {
             align-self: flex-end;
@@ -345,7 +346,7 @@
             </button>
             <h1>🌸 恩典圖書館 ☕</h1>
             <p v-if="!isAdmin">挑選喜歡的愛書，線上填寫借閱小紙條唷！</p>
-            <p v-else style="color: #2563EB; font-weight: bold;">👑 館長專屬工作台（即時借還 ‧ 新書建檔 ‧ 防排隊續借）</p>
+            <p v-else style="color: #2563EB; font-weight: bold;">👑 館長專屬工作台（借還管考 ‧ 館藏編輯 ‧ 防排隊續借）</p>
         </div>
 
         <!-- ================= 管理員專屬工作台 ================= -->
@@ -363,6 +364,9 @@
                 </button>
                 <button class="admin-tab-btn" :class="{ active: adminTab === 'addBook' }" @click="adminTab = 'addBook'" style="border-color: #16A34A; color: #16A34A;" :style="adminTab === 'addBook' ? 'background:#16A34A; color:white;' : ''">
                     ➕ 上架新書
+                </button>
+                <button class="admin-tab-btn" :class="{ active: adminTab === 'manageBooks' }" @click="adminTab = 'manageBooks'">
+                    📚 館藏編輯 ({{ books.length }})
                 </button>
                 <button class="admin-tab-btn" :class="{ active: adminTab === 'ranking' }" @click="adminTab = 'ranking'">
                     📊 熱門次數
@@ -398,7 +402,7 @@
             </div>
         </div>
 
-        <!-- 後台分頁 2：目前借閱中名單（內建自動檢查排隊狀況的辦理續借按鈕） -->
+        <!-- 後台分頁 2：目前借閱中名單 -->
         <div v-if="isAdmin && adminTab === 'borrowed'" class="card-list">
             <div v-if="activeBorrowedList.length === 0" style="text-align: center; padding: 40px; color: var(--text-muted);">
                 🌱 目前所有書籍都好端端在館內唷！
@@ -419,14 +423,13 @@
                 </div>
                 <div class="action-row">
                     <button class="btn-act btn-return" @click="returnBook(req)">📥 歸還入庫</button>
-                    <!-- 🔄 自動檢查排隊狀況的續借按鈕 -->
                     <button class="btn-act btn-renew" @click="handleRenewBook(req)">🔄 辦理續借</button>
                     <button class="btn-act btn-notice" style="background: #0284C7;" @click="openNoticeModal(req, 'remind')">📋 還書提醒小卡</button>
                 </div>
             </div>
         </div>
 
-        <!-- 後台分頁 3：➕ 上架新書功能專區 -->
+        <!-- 後台分頁 3：➕ 上架新書功能專區（已移除存放架位） -->
         <div v-if="isAdmin && adminTab === 'addBook'" class="item-card" style="border-color: #16A34A;">
             <div style="font-size: 1.15rem; font-weight: bold; color: #16A34A; margin-bottom: 4px;">
                 ✨ 新書建檔上架
@@ -451,17 +454,13 @@
             </div>
             <div style="display: flex; gap: 10px;">
                 <div class="form-group" style="flex: 1;">
-                    <label>存放架位</label>
-                    <input type="text" v-model="newBookForm.location" placeholder="例如：A-01-01" />
-                </div>
-                <div class="form-group" style="flex: 1;">
                     <label>館藏冊數 *</label>
                     <input type="number" min="1" v-model.number="newBookForm.copies" />
                 </div>
-            </div>
-            <div class="form-group">
-                <label>ISBN 條碼（選填）</label>
-                <input type="text" v-model="newBookForm.isbn" placeholder="請輸入 10 或 13 碼 ISBN（選填）" />
+                <div class="form-group" style="flex: 1;">
+                    <label>ISBN 條碼（選填）</label>
+                    <input type="text" v-model="newBookForm.isbn" placeholder="10 或 13 碼 ISBN" />
+                </div>
             </div>
             <div class="form-group">
                 <label>內容簡介（選填）</label>
@@ -472,7 +471,41 @@
             </button>
         </div>
 
-        <!-- 後台分頁 4：借閱次數排行 -->
+        <!-- 後台分頁 4：📚 館藏編輯與維護（上架後隨時可修改或刪除） -->
+        <div v-if="isAdmin && adminTab === 'manageBooks'" class="card-list">
+            <div class="search-box" style="margin-bottom: 4px;">
+                <input type="text" v-model="adminBookSearch" placeholder="🔍 搜尋欲編輯的書名、作者或分類..." />
+            </div>
+            <div v-if="filteredAdminBooks.length === 0" style="text-align: center; padding: 30px; color: var(--text-muted);">
+                🥺 沒有找到相符的館藏書籍。
+            </div>
+            <div v-for="book in filteredAdminBooks" :key="book.Id" class="item-card">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;">
+                    <div>
+                        <span v-if="isNewBook(book)" class="badge badge-new" style="margin-right: 6px;">
+                            ✨ 新書 (剩 {{ getNewBookDaysLeft(book) }} 天)
+                        </span>
+                        <strong style="font-size: 1.05rem;">《{{ book.Title }}》</strong>
+                    </div>
+                    <span class="badge" :class="getStatusClass(book)">{{ getStatusText(book) }}</span>
+                </div>
+                <div class="meta-info">
+                    <span v-if="book.Author">✍️ {{ book.Author }}</span>
+                    <span>🏷️ {{ book.Category }}</span>
+                    <span>📦 在館/總冊數：{{ book.AvailableCopies }}/{{ book.TotalCopies }} 本</span>
+                    <span v-if="book.ISBN">🔖 ISBN：{{ book.ISBN }}</span>
+                </div>
+                <div v-if="book.Description" style="font-size: 0.85rem; color: #6B5B4F; background: #FDF9F3; padding: 8px; border-radius: 8px;">
+                    {{ book.Description }}
+                </div>
+                <div class="action-row">
+                    <button class="btn-act btn-edit" @click="openEditBookModal(book)">✏️ 編輯書目資料</button>
+                    <button class="btn-act btn-reject" style="max-width: 110px;" @click="deleteBook(book)">🗑️ 刪除書籍</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 後台分頁 5：借閱次數排行 -->
         <div v-if="isAdmin && adminTab === 'ranking'" class="card-list">
             <div style="background: white; padding: 12px; border-radius: 10px; border: 1px solid var(--border-color); font-size: 0.9rem; color: #475569;">
                 📊 藏書借閱累計排行榜（依借出與歸還記錄即時統計）：
@@ -497,7 +530,7 @@
             </div>
         </div>
 
-        <!-- 後台分頁 5：完整借還履歷 -->
+        <!-- 後台分頁 6：完整借還履歷 -->
         <div v-if="isAdmin && adminTab === 'history'" class="card-list">
             <div v-if="historyList.length === 0" style="text-align: center; padding: 40px; color: var(--text-muted);">
                 📜 目前尚無借還紀錄。
@@ -521,7 +554,7 @@
             </div>
         </div>
 
-        <!-- ================= 前台：讀者查書區塊 ================= -->
+        <!-- ================= 前台：讀者查書區塊（已移除存放架位） ================= -->
         <div v-if="!isAdmin">
             <div class="search-box">
                 <input type="text" v-model="searchKeyword" placeholder="🔍 搜尋書名、作者或 ISBN..." />
@@ -556,7 +589,6 @@
                     <div class="meta-info">
                         <span v-if="book.Author">✍️ {{ book.Author }}</span>
                         <span>🏷️ {{ book.Category }}</span>
-                        <span>📍 架位：{{ book.Location }}</span>
                         <span>📦 總庫存：{{ book.TotalCopies }} 本</span>
                         <span>🔥 累計借閱：{{ getBookBorrowCount(book.Id) }} 次</span>
                     </div>
@@ -575,7 +607,7 @@
             <div class="modal-card">
                 <div class="modal-header">🔐 館長專屬身分驗證</div>
                 <p style="font-size: 0.85rem; color: var(--text-muted); text-align: center; margin-bottom: 14px;">
-                    請輸入管理者密碼以查看借閱人名單與借還歷史
+                    請輸入管理者密碼以查看借閱人名單與管理館藏
                 </p>
                 <div class="form-group">
                     <input type="password" v-model="adminPasswordInput" placeholder="請輸入密碼" @keyup.enter="verifyAdminLogin" />
@@ -583,6 +615,58 @@
                 <div class="btn-group">
                     <button class="btn-act" style="background: #E2E8F0;" @click="showLoginModal = false">取消</button>
                     <button class="btn-act btn-approve" @click="verifyAdminLogin">確認進入</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ✏️ 編輯已上架書籍彈出視窗 -->
+        <div v-if="showEditBookModal" class="modal-mask" @click.self="showEditBookModal = false">
+            <div class="modal-card">
+                <div class="modal-header" style="color: #0284C7;">✏️ 編輯館藏書籍資料</div>
+                <div class="form-group">
+                    <label>書名 *</label>
+                    <input type="text" v-model="editBookForm.title" placeholder="請輸入書名" />
+                </div>
+                <div class="form-group">
+                    <label>作者（選填）</label>
+                    <input type="text" v-model="editBookForm.author" placeholder="請輸入作者" />
+                </div>
+                <div class="form-group">
+                    <label>分類</label>
+                    <input type="text" v-model="editBookForm.category" list="editCatDatalist" placeholder="例如：靈修、屬靈爭戰、聖經..." />
+                    <datalist id="editCatDatalist">
+                        <option v-for="cat in categories" :key="cat" :value="cat"></option>
+                    </datalist>
+                </div>
+                <div style="display: flex; gap: 10px;">
+                    <div class="form-group" style="flex: 1;">
+                        <label>總館藏冊數 *</label>
+                        <input type="number" min="1" v-model.number="editBookForm.totalCopies" />
+                    </div>
+                    <div class="form-group" style="flex: 1;">
+                        <label>目前在館可借冊數 *</label>
+                        <input type="number" min="0" :max="editBookForm.totalCopies" v-model.number="editBookForm.availableCopies" />
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>ISBN 條碼（選填）</label>
+                    <input type="text" v-model="editBookForm.isbn" placeholder="10 或 13 碼 ISBN" />
+                </div>
+                <div class="form-group">
+                    <label>內容簡介（選填）</label>
+                    <textarea rows="3" v-model="editBookForm.description" placeholder="簡短書籍介紹..."></textarea>
+                </div>
+                <div class="form-group" style="display: flex; align-items: center; gap: 8px; background: #FFFBEB; padding: 8px 10px; border-radius: 8px; border: 1px solid #FDE68A;">
+                    <input type="checkbox" id="chkResetNew" v-model="editBookForm.resetAsNew" style="width: auto; margin: 0;" />
+                    <label for="chkResetNew" style="margin: 0; font-size: 0.85rem; color: #92400E; cursor: pointer;">
+                        ✨ 重新設為今日上架（重新點亮 30 天新書標籤）
+                    </label>
+                </div>
+                <div class="btn-group">
+                    <button class="btn-act" style="background: #E2E8F0;" @click="showEditBookModal = false">取消</button>
+                    <button class="btn-act btn-edit" :disabled="savingBookEdit" @click="saveEditedBook">
+                        {{ savingBookEdit ? '儲存中...' : '💾 儲存修改' }}
+                    </button>
                 </div>
             </div>
         </div>
@@ -631,7 +715,7 @@
             </div>
         </div>
 
-        <!-- 🔄 辦理續借展延 Modal（無人排隊時開啟） -->
+        <!-- 🔄 辦理續借展延 Modal -->
         <div v-if="showRenewModal" class="modal-mask" @click.self="showRenewModal = false">
             <div class="modal-card">
                 <div class="modal-header" style="color: var(--purple);">🔄 辦理愛書續借展延</div>
@@ -698,6 +782,7 @@
                 const loading = ref(true);
                 const searchKeyword = ref("");
                 const selectedCategory = ref("全部");
+                const adminBookSearch = ref("");
 
                 const isAdmin = ref(false);
                 const showLoginModal = ref(false);
@@ -713,16 +798,30 @@
                 const submitting = ref(false);
                 const currentBook = ref({});
 
-                // ➕ 上架新書表單狀態
+                // ➕ 上架新書表單狀態（已移除存放架位）
                 const addingBook = ref(false);
                 const newBookForm = ref({
                     title: "",
                     author: "",
                     category: "",
-                    location: "A-01-01",
                     copies: 1,
                     isbn: "",
                     description: ""
+                });
+
+                // ✏️ 編輯書籍彈窗狀態
+                const showEditBookModal = ref(false);
+                const savingBookEdit = ref(false);
+                const editBookForm = ref({
+                    id: "",
+                    title: "",
+                    author: "",
+                    category: "",
+                    totalCopies: 1,
+                    availableCopies: 1,
+                    isbn: "",
+                    description: "",
+                    resetAsNew: false
                 });
 
                 // 🔄 辦理續借狀態
@@ -831,14 +930,12 @@
                 const activeBorrowedList = computed(() => requestList.value.filter(r => r.Status === 1));
                 const historyList = computed(() => requestList.value.filter(r => r.Status === 2 || r.Status === 3));
 
-                // 檢查特定書籍是否有其他人在排隊
                 const getWaitingQueueCount = (bookId) => {
                     return pendingRequests.value.filter(r => r.BookId === bookId).length;
                 };
 
                 // 🔄 自動檢查排隊狀況的續借處理
                 const handleRenewBook = (req) => {
-                    // 1. 自動檢查後面是否有候補排隊者
                     const pendingForThisBook = pendingRequests.value.filter(r => r.BookId === req.BookId);
                     if (pendingForThisBook.length > 0) {
                         const nextReader = pendingForThisBook[0].ReaderName;
@@ -848,7 +945,6 @@
                         return;
                     }
 
-                    // 2. 檢查是否達到 60 天最長上限
                     const startStr = req.StartDate || req.ExpectedPickupDate || todayDateStr;
                     const maxDue = addDays(startStr, 60);
                     if (req.DueDate && req.DueDate >= maxDue) {
@@ -856,7 +952,6 @@
                         return;
                     }
 
-                    // 3. 通過檢查，開啟展延視窗
                     currentRenewReq.value = req;
                     maxRenewDueDate.value = maxDue;
                     const defaultExtend = addDays(req.DueDate || todayDateStr, 14);
@@ -864,7 +959,6 @@
                     showRenewModal.value = true;
                 };
 
-                // 確認續借儲存
                 const confirmRenewBook = async () => {
                     const req = currentRenewReq.value;
                     const newDue = renewNewDueDate.value;
@@ -906,7 +1000,6 @@
                     }
                 };
 
-                // 💌 開啟通知小卡
                 const openNoticeModal = (req, type, extra = '') => {
                     const startStr = req.StartDate || req.ExpectedPickupDate;
                     const dueStr = req.DueDate || '未設定';
@@ -972,6 +1065,7 @@
                     }
                 };
 
+                // ➕ 上架新書（不含存放架位）
                 const addNewBook = async () => {
                     if (!newBookForm.value.title.trim()) {
                         alert("請填寫書名唷！📖");
@@ -989,7 +1083,6 @@
                         Title: newBookForm.value.title.trim(),
                         Author: newBookForm.value.author.trim(),
                         Category: newBookForm.value.category.trim() || "其他",
-                        Location: newBookForm.value.location.trim() || "A-01-01",
                         TotalCopies: copies,
                         AvailableCopies: copies,
                         Status: 0,
@@ -1009,7 +1102,6 @@
                         newBookForm.value.title = "";
                         newBookForm.value.author = "";
                         newBookForm.value.category = "";
-                        newBookForm.value.location = "A-01-01";
                         newBookForm.value.copies = 1;
                         newBookForm.value.isbn = "";
                         newBookForm.value.description = "";
@@ -1020,6 +1112,110 @@
                         addingBook.value = false;
                     }
                 };
+
+                // ✏️ 開啟編輯已上架書籍彈窗
+                const openEditBookModal = (book) => {
+                    editBookForm.value = {
+                        id: book.Id,
+                        title: book.Title || "",
+                        author: book.Author || "",
+                        category: book.Category || "",
+                        totalCopies: book.TotalCopies || 1,
+                        availableCopies: book.AvailableCopies !== undefined ? book.AvailableCopies : (book.TotalCopies || 1),
+                        isbn: book.ISBN || "",
+                        description: book.Description || "",
+                        resetAsNew: false
+                    };
+                    showEditBookModal.value = true;
+                };
+
+                // 💾 儲存修改後的書籍資料
+                const saveEditedBook = async () => {
+                    if (!editBookForm.value.title.trim()) {
+                        alert("書名不能為空白唷！📖");
+                        return;
+                    }
+                    const total = parseInt(editBookForm.value.totalCopies) || 1;
+                    let avail = parseInt(editBookForm.value.availableCopies);
+                    if (isNaN(avail) || avail < 0) avail = 0;
+                    if (avail > total) avail = total;
+
+                    savingBookEdit.value = true;
+                    try {
+                        const target = books.value.find(b => b.Id === editBookForm.value.id);
+                        if (target) {
+                            const oldTitle = target.Title;
+                            target.Title = editBookForm.value.title.trim();
+                            target.Author = editBookForm.value.author.trim();
+                            target.Category = editBookForm.value.category.trim() || "其他";
+                            target.TotalCopies = total;
+                            target.AvailableCopies = avail;
+                            target.ISBN = editBookForm.value.isbn.trim();
+                            target.Description = editBookForm.value.description.trim();
+                            target.Status = avail > 0 ? 0 : 2;
+                            if (editBookForm.value.resetAsNew) {
+                                target.AddedDate = new Date().toISOString();
+                            }
+
+                            // 同步更新雲端書籍庫
+                            await fetch(`${FIREBASE_URL}books.json`, {
+                                method: "PUT",
+                                body: JSON.stringify(books.value)
+                            });
+
+                            // 若書名有異動，同步更新關聯借閱紀錄的書名
+                            if (oldTitle !== target.Title) {
+                                const updates = {};
+                                Object.values(requests.value).forEach(r => {
+                                    if (r.BookId === target.Id) {
+                                        r.BookTitle = target.Title;
+                                        updates[`${r.RequestId}/BookTitle`] = target.Title;
+                                    }
+                                });
+                                if (Object.keys(updates).length > 0) {
+                                    await fetch(`${FIREBASE_URL}requests.json`, {
+                                        method: "PATCH",
+                                        body: JSON.stringify(updates)
+                                    });
+                                }
+                            }
+                        }
+                        showEditBookModal.value = false;
+                        alert(`✅ 書籍《${editBookForm.value.title.trim()}》資料已成功更新！`);
+                    } catch (e) {
+                        console.error(e);
+                        alert("儲存修改失敗，請檢查網路連線！");
+                    } finally {
+                        savingBookEdit.value = false;
+                    }
+                };
+
+                // 🗑️ 刪除已上架書籍
+                const deleteBook = async (book) => {
+                    if (!confirm(`確定要刪除《${book.Title}》嗎？\n⚠️ 刪除後將從線上書櫃中永久移除！`)) return;
+                    try {
+                        books.value = books.value.filter(b => b.Id !== book.Id);
+                        await fetch(`${FIREBASE_URL}books.json`, {
+                            method: "PUT",
+                            body: JSON.stringify(books.value)
+                        });
+                        alert(`🗑️ 已將《${book.Title}》從館藏中刪除。`);
+                    } catch (e) {
+                        console.error(e);
+                        alert("刪除失敗，請檢查網路連線！");
+                    }
+                };
+
+                const filteredAdminBooks = computed(() => {
+                    const kw = adminBookSearch.value.trim().toLowerCase();
+                    if (!kw) return books.value;
+                    return books.value.filter(b =>
+                        (b.Title && b.Title.toLowerCase().includes(kw)) ||
+                        (b.Author && b.Author.toLowerCase().includes(kw)) ||
+                        (b.Category && b.Category.toLowerCase().includes(kw)) ||
+                        (b.ISBN && b.ISBN.toLowerCase().includes(kw))
+                    );
+                });
 
                 const approveRequest = async (req) => {
                     if (!confirm(`確定要核准《${req.BookTitle}》給 ${req.ReaderName} 嗎？\n預定歸還日期為：${req.DueDate}`)) return;
@@ -1228,11 +1424,13 @@
 
                 return {
                     books, loading, searchKeyword, selectedCategory, categories, filteredBooks,
+                    adminBookSearch, filteredAdminBooks,
                     isAdmin, showLoginModal, adminPasswordInput, adminTab,
                     pendingRequests, activeBorrowedList, historyList, bookBorrowRanking,
                     showNoticeModal, currentNoticeText, openNoticeModal, copyNoticeText,
                     showReserveModal, submitting, currentBook, form,
                     newBookForm, addingBook, addNewBook,
+                    showEditBookModal, savingBookEdit, editBookForm, openEditBookModal, saveEditedBook, deleteBook,
                     showRenewModal, currentRenewReq, renewNewDueDate, maxRenewDueDate,
                     handleRenewBook, confirmRenewBook, getWaitingQueueCount,
                     todayDateStr, maxReturnDateStr, formDaysCount, onStartDateChange, calculateDays,

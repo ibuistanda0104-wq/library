@@ -96,32 +96,6 @@
             margin-bottom: 16px;
         }
 
-        .push-info-bar {
-            background: #FFFFFF;
-            border: 1px solid #BFDBFE;
-            border-radius: 10px;
-            padding: 8px 10px;
-            margin-top: 8px;
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: space-between;
-            align-items: center;
-            gap: 6px;
-            font-size: 0.8rem;
-            color: #1E40AF;
-        }
-
-        .mini-btn {
-            background: #DBEAFE;
-            color: #1E40AF;
-            border: none;
-            padding: 4px 10px;
-            border-radius: 6px;
-            font-size: 0.78rem;
-            font-weight: bold;
-            cursor: pointer;
-        }
-
         .admin-tabs {
             display: flex;
             flex-wrap: wrap;
@@ -393,16 +367,6 @@
                 <span style="font-weight: bold; color: var(--admin-blue);">📋 館長工作台選單</span>
                 <button @click="refreshAllData" style="background: none; border: none; color: #64748B; cursor: pointer; font-size: 0.85rem;">🔄 重新整理</button>
             </div>
-
-            <!-- 🔔 手機推播專屬頻道資訊列 -->
-            <div class="push-info-bar">
-                <span>🔔 手機推播頻道：<strong>{{ NTFY_TOPIC }}</strong></span>
-                <div style="display: flex; gap: 6px;">
-                    <button class="mini-btn" @click="copyNtfyTopic">📋 複製頻道</button>
-                    <button class="mini-btn" style="background: #DCFCE7; color: #166534;" @click="testPushNotification">🔔 測試通知</button>
-                </div>
-            </div>
-
             <div class="admin-tabs">
                 <button class="admin-tab-btn" :class="{ active: adminTab === 'pending' }" @click="switchAdminTab('pending')">
                     📥 待審核 ({{ pendingRequests.length }})
@@ -477,7 +441,7 @@
             </div>
         </div>
 
-        <!-- 後台分頁 3：➕ 上架新書功能專區 -->
+        <!-- 後台分頁 3：➕ 上架新書功能專區（支援相機掃描 ISBN 自動帶入書名） -->
         <div v-if="isAdmin && adminTab === 'addBook'" class="item-card" style="border-color: #16A34A;">
             <div style="font-size: 1.15rem; font-weight: bold; color: #16A34A; margin-bottom: 4px;">
                 ✨ 新書建檔上架
@@ -486,6 +450,7 @@
                 可直接掃描書背 ISBN 條碼自動帶入書名與作者，上架後自動點亮「✨ 本月新書」（30 天展期）標籤！
             </p>
 
+            <!-- 📷 相機掃描 ISBN 控制區 -->
             <div style="margin-bottom: 12px;">
                 <button v-if="!isScanningIsbn" type="button" class="btn-act btn-scan" @click="startIsbnScanner">
                     📷 開啟相機掃描書本 ISBN 條碼
@@ -544,7 +509,7 @@
             </button>
         </div>
 
-        <!-- 後台分頁 4：📚 館藏編輯與維護 -->
+        <!-- 後台分頁 4：📚 館藏編輯與維護（上架後隨時可修改或刪除） -->
         <div v-if="isAdmin && adminTab === 'manageBooks'" class="card-list">
             <div class="search-box" style="margin-bottom: 4px;">
                 <input type="text" v-model="adminBookSearch" placeholder="🔍 搜尋欲編輯的書名、作者或分類..." />
@@ -849,8 +814,6 @@
             setup() {
                 const FIREBASE_URL = "https://my-library-sync-default-rtdb.firebaseio.com/";
                 const ADMIN_PIN = "8888";
-                // 🔔 恩典圖書館管理員專屬推播頻道密碼（僅限館長與管理同工訂閱）
-                const NTFY_TOPIC = "grace-lib-739482-alert";
 
                 const books = ref([]);
                 const requests = ref({});
@@ -954,46 +917,6 @@
                     return diff >= 0 ? diff : 0;
                 };
 
-                // 🔔 發送加密頻道推播通知（不揭露任何個資）
-                const triggerAdminPushNotification = async () => {
-                    try {
-                        await fetch(`https://ntfy.sh/${NTFY_TOPIC}`, {
-                            method: "POST",
-                            headers: {
-                                "Title": "Grace Library",
-                                "Priority": "high",
-                                "Tags": "books"
-                            },
-                            body: "🌸 恩典圖書館收到新的借閱申請，請登入後台審核"
-                        });
-                    } catch (e) {
-                        console.warn("推播發送略過:", e);
-                    }
-                };
-
-                const copyNtfyTopic = async () => {
-                    try {
-                        if (navigator.clipboard && navigator.clipboard.writeText) {
-                            await navigator.clipboard.writeText(NTFY_TOPIC);
-                        } else {
-                            const ta = document.createElement('textarea');
-                            ta.value = NTFY_TOPIC;
-                            document.body.appendChild(ta);
-                            ta.select();
-                            document.execCommand('copy');
-                            document.body.removeChild(ta);
-                        }
-                        alert(`已複製專屬頻道密碼：${NTFY_TOPIC}\n可貼到 ntfy App 訂閱，或分享給其他管理同工！`);
-                    } catch (e) {
-                        alert(`專屬頻道密碼為：${NTFY_TOPIC}`);
-                    }
-                };
-
-                const testPushNotification = async () => {
-                    await triggerAdminPushNotification();
-                    alert(`已發送測試通知至頻道【${NTFY_TOPIC}】！\n請確認手機是否有跳出推播橫幅。`);
-                };
-
                 // 📷 開啟相機掃描 ISBN 條碼
                 const startIsbnScanner = async () => {
                     if (isScanningIsbn.value) {
@@ -1034,6 +957,7 @@
                     }
                 };
 
+                // ⏹️ 停止相機並釋放權限
                 const stopIsbnScanner = async () => {
                     if (html5QrCode) {
                         try {
@@ -1047,6 +971,7 @@
                     isScanningIsbn.value = false;
                 };
 
+                // 🔍 依據 ISBN 自動連線公開書目庫查詢書名、作者與簡介
                 const fetchBookInfoByIsbn = async (rawIsbn) => {
                     const isbn = (rawIsbn || "").replace(/[^0-9Xx]/g, "");
                     if (!isbn) {
@@ -1056,6 +981,7 @@
 
                     fetchingIsbnInfo.value = true;
                     try {
+                        // 1. 優先查詢 Google Books 公開書目庫
                         let res = await fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}`);
                         let data = await res.json();
 
@@ -1078,6 +1004,7 @@
                             return;
                         }
 
+                        // 2. 備援查詢 Open Library 公開書目庫
                         const olRes = await fetch(`https://openlibrary.org/api/books?bibkeys=ISBN:${isbn}&format=json&jscmd=data`);
                         const olData = await olRes.json();
                         const olBook = olData[`ISBN:${isbn}`];
@@ -1584,10 +1511,6 @@
                             method: "PUT",
                             body: JSON.stringify(newReq)
                         });
-
-                        // 🔔 同步發送加密頻道推播通知給管理員（不附帶個資）
-                        await triggerAdminPushNotification();
-
                         alert(`借閱小紙條送出成功！✨\n\n書籍：《${currentBook.value.Title}》\n借閱期間：${newReq.StartDate} ～ ${newReq.DueDate} (共 ${diffDays} 天)\n管理員將為您審核保留！`);
                         showReserveModal.value = false;
                         await refreshAllData();
@@ -1655,7 +1578,6 @@
                 });
 
                 return {
-                    NTFY_TOPIC, copyNtfyTopic, testPushNotification,
                     books, loading, searchKeyword, selectedCategory, categories, filteredBooks,
                     adminBookSearch, filteredAdminBooks,
                     isAdmin, showLoginModal, adminPasswordInput, adminTab, switchAdminTab,

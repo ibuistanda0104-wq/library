@@ -131,6 +131,22 @@
             gap: 10px;
         }
 
+        .my-progress-btn {
+            width: 100%;
+            padding: 10px 14px;
+            border-radius: 10px;
+            border: 1.5px solid #93C5FD;
+            background: #EFF6FF;
+            color: #1D4ED8;
+            font-weight: bold;
+            font-size: 0.9rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+
         input, select, textarea {
             width: 100%;
             padding: 10px 14px;
@@ -199,6 +215,12 @@
             gap: 8px;
         }
 
+        /* 逾期紅燈警示卡片樣式 */
+        .item-card.card-overdue {
+            border: 2px solid #DC2626;
+            background: #FEF2F2;
+        }
+
         .badge {
             font-size: 0.78rem;
             font-weight: bold;
@@ -210,6 +232,10 @@
         .badge-available { background: #E8F5E9; color: #2E7D32; }
         .badge-pending { background: #FFF9C4; color: #B45309; }
         .badge-borrowed { background: #FFEBEE; color: #C2185B; }
+        .badge-overdue { background: #DC2626; color: #FFFFFF; }
+        .badge-soon { background: #FEF3C7; color: #B45309; border: 1px solid #F59E0B; }
+        .badge-queue-ready { background: #DCFCE7; color: #166534; border: 1px solid #86EFAC; }
+        .badge-queue-wait { background: #FEF3C7; color: #92400E; border: 1px solid #FCD34D; }
         
         .badge-new {
             background: linear-gradient(135deg, #FF6B6B, #FF8E53);
@@ -346,7 +372,7 @@
             </button>
             <h1>🌸 恩典圖書館 ☕</h1>
             <p v-if="!isAdmin">挑選喜歡的愛書，線上填寫借閱小紙條唷！</p>
-            <p v-else style="color: #2563EB; font-weight: bold;">👑 館長專屬工作台（借還管考 ‧ 館藏編輯 ‧ 防排隊續借）</p>
+            <p v-else style="color: #2563EB; font-weight: bold;">👑 館長專屬工作台（排隊順位 ‧ 逾期警示 ‧ 館藏管理）</p>
         </div>
 
         <!-- ================= 管理員專屬工作台 ================= -->
@@ -360,7 +386,7 @@
                     📥 待審核 ({{ pendingRequests.length }})
                 </button>
                 <button class="admin-tab-btn" :class="{ active: adminTab === 'borrowed' }" @click="adminTab = 'borrowed'">
-                    🎒 借閱中 ({{ activeBorrowedList.length }})
+                    🎒 借閱中 ({{ activeBorrowedList.length }}) <span v-if="overdueCount > 0" style="color: #DC2626; background: #FEE2E2; padding: 1px 5px; border-radius: 8px; margin-left: 2px;">🚨{{ overdueCount }}</span>
                 </button>
                 <button class="admin-tab-btn" :class="{ active: adminTab === 'addBook' }" @click="adminTab = 'addBook'" style="border-color: #16A34A; color: #16A34A;" :style="adminTab === 'addBook' ? 'background:#16A34A; color:white;' : ''">
                     ➕ 上架新書
@@ -377,15 +403,18 @@
             </div>
         </div>
 
-        <!-- 後台分頁 1：待審核小紙條 -->
+        <!-- 後台分頁 1：待審核小紙條（含排隊順位自動標示） -->
         <div v-if="isAdmin && adminTab === 'pending'" class="card-list">
             <div v-if="pendingRequests.length === 0" style="text-align: center; padding: 40px; color: var(--text-muted);">
                 ✨ 目前沒有等待審核的借閱小紙條唷！
             </div>
             <div v-for="req in pendingRequests" :key="req.RequestId" class="item-card" style="border-color: #FBBF24;">
-                <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; flex-wrap: wrap;">
                     <strong style="font-size: 1.05rem;">《{{ req.BookTitle }}》</strong>
-                    <span class="badge badge-pending">待審核</span>
+                    <!-- 🏷️ 自動計算排隊順位標籤 -->
+                    <span class="badge" :class="getQueueInfo(req).canIssue ? 'badge-queue-ready' : 'badge-queue-wait'">
+                        {{ getQueueInfo(req).label }}
+                    </span>
                 </div>
                 <div class="reader-info-box">
                     <div>👤 借閱人：<strong>{{ req.ReaderName }}</strong></div>
@@ -402,21 +431,35 @@
             </div>
         </div>
 
-        <!-- 後台分頁 2：目前借閱中名單 -->
+        <!-- 後台分頁 2：目前借閱中名單（含逾期紅燈警示與優先置頂） -->
         <div v-if="isAdmin && adminTab === 'borrowed'" class="card-list">
-            <div v-if="activeBorrowedList.length === 0" style="text-align: center; padding: 40px; color: var(--text-muted);">
-                🌱 目前所有書籍都好端端在館內唷！
+            <!-- 逾期篩選提示列 -->
+            <div v-if="overdueCount > 0" style="background: #FEF2F2; border: 1.5px solid #FCA5A5; border-radius: 10px; padding: 10px 12px; display: flex; justify-content: space-between; align-items: center; gap: 8px;">
+                <span style="color: #B91C1C; font-weight: bold; font-size: 0.88rem;">
+                    🚨 目前有 {{ overdueCount }} 筆借閱已超過歸還期限！
+                </span>
+                <button @click="onlyShowOverdue = !onlyShowOverdue" style="background: #DC2626; color: white; border: none; padding: 5px 10px; border-radius: 8px; font-size: 0.8rem; font-weight: bold; cursor: pointer; white-space: nowrap;">
+                    {{ onlyShowOverdue ? '顯示全部' : '僅看逾期' }}
+                </button>
             </div>
-            <div v-for="req in activeBorrowedList" :key="req.RequestId" class="item-card" style="border-color: #38BDF8;">
-                <div style="display: flex; justify-content: space-between; align-items: center;">
+
+            <div v-if="displayedBorrowedList.length === 0" style="text-align: center; padding: 40px; color: var(--text-muted);">
+                🌱 目前沒有符合條件的借閱中書籍唷！
+            </div>
+
+            <div v-for="req in displayedBorrowedList" :key="req.RequestId" class="item-card" :class="{ 'card-overdue': getDueStatus(req.DueDate).isOverdue }" :style="!getDueStatus(req.DueDate).isOverdue ? 'border-color: #38BDF8;' : ''">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; flex-wrap: wrap;">
                     <strong style="font-size: 1.05rem;">《{{ req.BookTitle }}》</strong>
-                    <span class="badge badge-borrowed">借出中</span>
+                    <!-- 🚨 逾期紅燈 / 即將到期黃燈 / 正常狀態標籤 -->
+                    <span class="badge" :class="getDueStatus(req.DueDate).isOverdue ? 'badge-overdue' : (getDueStatus(req.DueDate).isSoon ? 'badge-soon' : 'badge-borrowed')">
+                        {{ getDueStatus(req.DueDate).text }}
+                    </span>
                 </div>
-                <div class="reader-info-box">
-                    <div>👤 借閱人：<strong>{{ req.ReaderName }}</strong> (📞 <a :href="'tel:' + req.ReaderPhone">{{ req.ReaderPhone }}</a>)</div>
+                <div class="reader-info-box" :style="getDueStatus(req.DueDate).isOverdue ? 'background: #FFFFFF; border-color: #FECACA;' : ''">
+                    <div>👤 借閱人：<strong>{{ req.ReaderName }}</strong> (📞 <a :href="'tel:' + req.ReaderPhone" style="color: var(--admin-blue); font-weight: bold;">{{ req.ReaderPhone }}</a>)</div>
                     <div>📅 起借日期：{{ req.StartDate || req.ExpectedPickupDate }}</div>
                     <div>⏳ 借閱天數：共 {{ calculateDays(req.StartDate || req.ExpectedPickupDate, req.DueDate) }} 天</div>
-                    <div>🎒 目前到期日：<strong style="color: #DC2626;">{{ req.DueDate || '未設定' }}</strong></div>
+                    <div>🎒 預定歸還日：<strong :style="{ color: getDueStatus(req.DueDate).isOverdue ? '#DC2626' : '#1E293B' }">{{ req.DueDate || '未設定' }}</strong></div>
                     <div v-if="getWaitingQueueCount(req.BookId) > 0" style="color: #D97706; font-weight: bold; font-size: 0.85rem; margin-top: 4px;">
                         ⚠️ 注意：此書後面已有 {{ getWaitingQueueCount(req.BookId) }} 位讀者排隊候補中！
                     </div>
@@ -429,7 +472,7 @@
             </div>
         </div>
 
-        <!-- 後台分頁 3：➕ 上架新書功能專區（已移除存放架位） -->
+        <!-- 後台分頁 3：➕ 上架新書功能專區 -->
         <div v-if="isAdmin && adminTab === 'addBook'" class="item-card" style="border-color: #16A34A;">
             <div style="font-size: 1.15rem; font-weight: bold; color: #16A34A; margin-bottom: 4px;">
                 ✨ 新書建檔上架
@@ -471,7 +514,7 @@
             </button>
         </div>
 
-        <!-- 後台分頁 4：📚 館藏編輯與維護（上架後隨時可修改或刪除） -->
+        <!-- 後台分頁 4：📚 館藏編輯與維護 -->
         <div v-if="isAdmin && adminTab === 'manageBooks'" class="card-list">
             <div class="search-box" style="margin-bottom: 4px;">
                 <input type="text" v-model="adminBookSearch" placeholder="🔍 搜尋欲編輯的書名、作者或分類..." />
@@ -554,7 +597,7 @@
             </div>
         </div>
 
-        <!-- ================= 前台：讀者查書區塊（已移除存放架位） ================= -->
+        <!-- ================= 前台：讀者查書與個人借閱進度查詢 ================= -->
         <div v-if="!isAdmin">
             <div class="search-box">
                 <input type="text" v-model="searchKeyword" placeholder="🔍 搜尋書名、作者或 ISBN..." />
@@ -567,6 +610,10 @@
                         {{ cat }}
                     </button>
                 </div>
+                <!-- 📋 讀者專屬：查詢自己的借閱與排隊進度按鈕 -->
+                <button class="my-progress-btn" @click="openMyProgressModal">
+                    📋 查詢我的借閱與排隊進度
+                </button>
             </div>
 
             <div class="card-list">
@@ -598,6 +645,55 @@
                     <button class="btn-reserve" @click="openReserveModal(book)">
                         💌 填單借閱 / 預約
                     </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 📋 讀者查詢自己的借閱進度彈出視窗 -->
+        <div v-if="showMyProgressModal" class="modal-mask" @click.self="showMyProgressModal = false">
+            <div class="modal-card">
+                <div class="modal-header" style="color: #1D4ED8;">📋 查詢我的借閱與排隊進度</div>
+                <p style="font-size: 0.85rem; color: var(--text-muted); text-align: center; margin-bottom: 12px;">
+                    請輸入您登記借閱時填寫的手機號碼，即可查看專屬進度：
+                </p>
+                <div style="display: flex; gap: 8px; margin-bottom: 14px;">
+                    <input type="tel" v-model="readerLookupPhone" placeholder="請輸入手機號碼（例如：0912345678）" @keyup.enter="searchMyRecords" />
+                    <button class="btn-act btn-return" style="flex: 0 0 80px;" @click="searchMyRecords">查詢</button>
+                </div>
+
+                <div v-if="hasSearchedMyRecords">
+                    <div v-if="myMatchedRecords.length === 0" style="text-align: center; padding: 24px; color: var(--text-muted); background: #F8FAFC; border-radius: 10px;">
+                        🔍 找不到此手機號碼的借閱或預約紀錄唷！<br>
+                        <span style="font-size: 0.8rem;">（請確認號碼是否與填單時一致）</span>
+                    </div>
+                    <div v-else class="card-list">
+                        <div v-for="rec in myMatchedRecords" :key="rec.RequestId" class="reader-info-box" :style="rec.Status === 1 && getDueStatus(rec.DueDate).isOverdue ? 'border-color: #DC2626; background: #FEF2F2;' : ''">
+                            <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 6px; margin-bottom: 4px;">
+                                <strong style="font-size: 1rem;">《{{ rec.BookTitle }}》</strong>
+                                <!-- 依狀態顯示專屬進度標籤 -->
+                                <span v-if="rec.Status === 0" class="badge" :class="getQueueInfo(rec).canIssue ? 'badge-queue-ready' : 'badge-queue-wait'">
+                                    {{ getQueueInfo(rec).readerLabel }}
+                                </span>
+                                <span v-else-if="rec.Status === 1" class="badge" :class="getDueStatus(rec.DueDate).isOverdue ? 'badge-overdue' : (getDueStatus(rec.DueDate).isSoon ? 'badge-soon' : 'badge-borrowed')">
+                                    {{ getDueStatus(rec.DueDate).text }}
+                                </span>
+                                <span v-else class="badge" :style="rec.Status === 3 ? 'background:#DCFCE7; color:#166534;' : 'background:#E2E8F0; color:#475569;'">
+                                    {{ getStatusLabel(rec.Status) }}
+                                </span>
+                            </div>
+                            <div style="font-size: 0.85rem; color: #475569;">
+                                <div>👤 借閱人：{{ rec.ReaderName }}</div>
+                                <div>📅 借閱期間：{{ rec.StartDate || rec.ExpectedPickupDate }} ～ {{ rec.DueDate }}</div>
+                                <div v-if="rec.Status === 3 && rec.ReturnedDate" style="color: #16A34A;">
+                                    ✅ 歸還時間：{{ formatDateTime(rec.ReturnedDate) }}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="btn-group">
+                    <button class="btn-act" style="background: #E2E8F0;" @click="showMyProgressModal = false">關閉視窗</button>
                 </div>
             </div>
         </div>
@@ -783,6 +879,7 @@
                 const searchKeyword = ref("");
                 const selectedCategory = ref("全部");
                 const adminBookSearch = ref("");
+                const onlyShowOverdue = ref(false);
 
                 const isAdmin = ref(false);
                 const showLoginModal = ref(false);
@@ -793,12 +890,18 @@
                 const showNoticeModal = ref(false);
                 const currentNoticeText = ref("");
 
-                // 讀者表單狀態
+                // 讀者借閱表單狀態
                 const showReserveModal = ref(false);
                 const submitting = ref(false);
                 const currentBook = ref({});
 
-                // ➕ 上架新書表單狀態（已移除存放架位）
+                // 📋 讀者查詢個人進度狀態
+                const showMyProgressModal = ref(false);
+                const readerLookupPhone = ref("");
+                const hasSearchedMyRecords = ref(false);
+                const myMatchedRecords = ref([]);
+
+                // ➕ 上架新書表單狀態
                 const addingBook = ref(false);
                 const newBookForm = ref({
                     title: "",
@@ -830,14 +933,32 @@
                 const renewNewDueDate = ref('');
                 const maxRenewDueDate = ref('');
 
-                const today = new Date();
-                const todayDateStr = today.toISOString().split('T')[0];
+                // 取得本地今天日期字串 YYYY-MM-DD
+                const getLocalTodayStr = () => {
+                    const d = new Date();
+                    const yyyy = d.getFullYear();
+                    const mm = String(d.getMonth() + 1).padStart(2, '0');
+                    const dd = String(d.getDate()).padStart(2, '0');
+                    return `${yyyy}-${mm}-${dd}`;
+                };
+
+                const todayDateStr = getLocalTodayStr();
+
+                const parseLocalDate = (dStr) => {
+                    if (!dStr) return null;
+                    const parts = dStr.split('-');
+                    if (parts.length !== 3) return new Date(dStr);
+                    return new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+                };
 
                 const addDays = (dStr, days) => {
                     if (!dStr) return '';
-                    const d = new Date(dStr);
+                    const d = parseLocalDate(dStr);
                     d.setDate(d.getDate() + days);
-                    return d.toISOString().split('T')[0];
+                    const yyyy = d.getFullYear();
+                    const mm = String(d.getMonth() + 1).padStart(2, '0');
+                    const dd = String(d.getDate()).padStart(2, '0');
+                    return `${yyyy}-${mm}-${dd}`;
                 };
 
                 const form = ref({
@@ -861,18 +982,41 @@
                 };
 
                 const formDaysCount = computed(() => {
-                    const s = new Date(form.value.startDate);
-                    const r = new Date(form.value.returnDate);
-                    const diff = Math.round((r - s) / (1000 * 3600 * 24));
+                    const s = parseLocalDate(form.value.startDate);
+                    const r = parseLocalDate(form.value.returnDate);
+                    if (!s || !r) return 0;
+                    const diff = Math.round((r - s) / 86400000);
                     return isNaN(diff) || diff < 0 ? 0 : diff;
                 });
 
                 const calculateDays = (start, end) => {
                     if (!start || !end) return 0;
-                    const s = new Date(start);
-                    const e = new Date(end);
-                    const diff = Math.round((e - s) / (1000 * 3600 * 24));
+                    const s = parseLocalDate(start);
+                    const e = parseLocalDate(end);
+                    if (!s || !e) return 0;
+                    const diff = Math.round((e - s) / 86400000);
                     return diff >= 0 ? diff : 0;
+                };
+
+                // 🚨 計算到期與逾期狀態（紅燈 / 黃燈 / 正常）
+                const getDueStatus = (dueDateStr) => {
+                    if (!dueDateStr) {
+                        return { isOverdue: false, isSoon: false, days: 999, text: '借出中' };
+                    }
+                    const today = parseLocalDate(getLocalTodayStr());
+                    const due = parseLocalDate(dueDateStr);
+                    const diffDays = Math.round((due - today) / 86400000);
+
+                    if (diffDays < 0) {
+                        const overdueDays = Math.abs(diffDays);
+                        return { isOverdue: true, isSoon: false, days: overdueDays, text: `🚨 已逾期 ${overdueDays} 天` };
+                    } else if (diffDays === 0) {
+                        return { isOverdue: false, isSoon: true, days: 0, text: '⏰ 今天到期' };
+                    } else if (diffDays <= 3) {
+                        return { isOverdue: false, isSoon: true, days: diffDays, text: `⏰ 剩 ${diffDays} 天到期` };
+                    } else {
+                        return { isOverdue: false, isSoon: false, days: diffDays, text: `借閱中 (剩 ${diffDays} 天)` };
+                    }
                 };
 
                 const fetchBooks = async () => {
@@ -926,12 +1070,90 @@
                     const list = Object.values(requests.value);
                     return list.sort((a, b) => new Date(b.RequestDate) - new Date(a.RequestDate));
                 });
-                const pendingRequests = computed(() => requestList.value.filter(r => r.Status === 0));
-                const activeBorrowedList = computed(() => requestList.value.filter(r => r.Status === 1));
+
+                // 待審核清單（依申請時間由早到晚排列，方便依序核准）
+                const pendingRequests = computed(() => {
+                    return Object.values(requests.value)
+                        .filter(r => r.Status === 0)
+                        .sort((a, b) => new Date(a.RequestDate) - new Date(b.RequestDate));
+                });
+
+                // 借閱中清單（逾期者自動排在最上方！）
+                const activeBorrowedList = computed(() => {
+                    return Object.values(requests.value)
+                        .filter(r => r.Status === 1)
+                        .sort((a, b) => {
+                            const statusA = getDueStatus(a.DueDate);
+                            const statusB = getDueStatus(b.DueDate);
+                            if (statusA.isOverdue && !statusB.isOverdue) return -1;
+                            if (!statusA.isOverdue && statusB.isOverdue) return 1;
+                            if (statusA.isOverdue && statusB.isOverdue) return statusB.days - statusA.days; // 逾期越久越前面
+                            return (a.DueDate || '9999').localeCompare(b.DueDate || '9999'); // 越快到期的越前面
+                        });
+                });
+
+                const overdueCount = computed(() => {
+                    return activeBorrowedList.value.filter(r => getDueStatus(r.DueDate).isOverdue).length;
+                });
+
+                const displayedBorrowedList = computed(() => {
+                    if (onlyShowOverdue.value) {
+                        return activeBorrowedList.value.filter(r => getDueStatus(r.DueDate).isOverdue);
+                    }
+                    return activeBorrowedList.value;
+                });
+
                 const historyList = computed(() => requestList.value.filter(r => r.Status === 2 || r.Status === 3));
 
                 const getWaitingQueueCount = (bookId) => {
                     return pendingRequests.value.filter(r => r.BookId === bookId).length;
+                };
+
+                // 🏷️ 計算單筆預約的排隊順位資訊
+                const getQueueInfo = (req) => {
+                    const sameBookPending = pendingRequests.value.filter(r => r.BookId === req.BookId);
+                    const pos = sameBookPending.findIndex(r => r.RequestId === req.RequestId) + 1;
+                    const book = books.value.find(b => b.Id === req.BookId);
+                    const avail = book ? (book.AvailableCopies || 0) : 0;
+
+                    if (avail >= pos) {
+                        return {
+                            canIssue: true,
+                            pos,
+                            waitRank: 0,
+                            label: `🟢 有書可發（正取第 ${pos} 位）`,
+                            readerLabel: `🟢 館藏有書保留中（等待館長核准）`
+                        };
+                    } else {
+                        const waitRank = pos - avail;
+                        return {
+                            canIssue: false,
+                            pos,
+                            waitRank,
+                            label: `🟡 缺書候補中（排隊第 ${waitRank} 順位）`,
+                            readerLabel: `🟡 排隊候補中（目前第 ${waitRank} 順位）`
+                        };
+                    }
+                };
+
+                // 📋 讀者查詢自己的借閱進度
+                const normalizePhone = (p) => (p || '').replace(/[\s\-()]/g, '').trim();
+
+                const openMyProgressModal = async () => {
+                    hasSearchedMyRecords.value = false;
+                    showMyProgressModal.value = true;
+                    await fetchRequests();
+                };
+
+                const searchMyRecords = async () => {
+                    const cleanPhone = normalizePhone(readerLookupPhone.value);
+                    if (!cleanPhone) {
+                        alert("請輸入手機號碼進行查詢唷！");
+                        return;
+                    }
+                    await fetchRequests();
+                    myMatchedRecords.value = requestList.value.filter(r => normalizePhone(r.ReaderPhone) === cleanPhone);
+                    hasSearchedMyRecords.value = true;
                 };
 
                 // 🔄 自動檢查排隊狀況的續借處理
@@ -1065,7 +1287,6 @@
                     }
                 };
 
-                // ➕ 上架新書（不含存放架位）
                 const addNewBook = async () => {
                     if (!newBookForm.value.title.trim()) {
                         alert("請填寫書名唷！📖");
@@ -1113,7 +1334,6 @@
                     }
                 };
 
-                // ✏️ 開啟編輯已上架書籍彈窗
                 const openEditBookModal = (book) => {
                     editBookForm.value = {
                         id: book.Id,
@@ -1129,7 +1349,6 @@
                     showEditBookModal.value = true;
                 };
 
-                // 💾 儲存修改後的書籍資料
                 const saveEditedBook = async () => {
                     if (!editBookForm.value.title.trim()) {
                         alert("書名不能為空白唷！📖");
@@ -1157,13 +1376,11 @@
                                 target.AddedDate = new Date().toISOString();
                             }
 
-                            // 同步更新雲端書籍庫
                             await fetch(`${FIREBASE_URL}books.json`, {
                                 method: "PUT",
                                 body: JSON.stringify(books.value)
                             });
 
-                            // 若書名有異動，同步更新關聯借閱紀錄的書名
                             if (oldTitle !== target.Title) {
                                 const updates = {};
                                 Object.values(requests.value).forEach(r => {
@@ -1190,7 +1407,6 @@
                     }
                 };
 
-                // 🗑️ 刪除已上架書籍
                 const deleteBook = async (book) => {
                     if (!confirm(`確定要刪除《${book.Title}》嗎？\n⚠️ 刪除後將從線上書櫃中永久移除！`)) return;
                     try {
@@ -1218,6 +1434,12 @@
                 });
 
                 const approveRequest = async (req) => {
+                    const book = books.value.find(b => b.Id === req.BookId);
+                    if (!book || (book.AvailableCopies || 0) <= 0) {
+                        alert(`⚠️ 目前《${req.BookTitle}》在庫數量為 0，尚無法核准借出！\n請等前一位借閱人歸還入庫後，再核准給排隊讀者唷。`);
+                        return;
+                    }
+
                     if (!confirm(`確定要核准《${req.BookTitle}》給 ${req.ReaderName} 嗎？\n預定歸還日期為：${req.DueDate}`)) return;
                     req.Status = 1;
                     req.BorrowDate = new Date().toISOString();
@@ -1231,15 +1453,13 @@
                         })
                     });
 
-                    const book = books.value.find(b => b.Id === req.BookId);
-                    if (book && book.AvailableCopies > 0) {
-                        book.AvailableCopies -= 1;
-                        if (book.AvailableCopies === 0) book.Status = 2;
-                        await fetch(`${FIREBASE_URL}books.json`, {
-                            method: "PUT",
-                            body: JSON.stringify(books.value)
-                        });
-                    }
+                    book.AvailableCopies -= 1;
+                    if (book.AvailableCopies === 0) book.Status = 2;
+                    await fetch(`${FIREBASE_URL}books.json`, {
+                        method: "PUT",
+                        body: JSON.stringify(books.value)
+                    });
+
                     await refreshAllData();
 
                     if (confirm(`借閱已核准！🎉\n是否要立即開啟並複製給 ${req.ReaderName} 的【借閱通知小卡】？`)) {
@@ -1280,7 +1500,13 @@
                         });
                     }
                     await refreshAllData();
-                    alert(`《${req.BookTitle}》已成功辦理歸還！在庫數量已恢復為：${book ? book.AvailableCopies : 1} 本。`);
+
+                    const waitingCnt = getWaitingQueueCount(req.BookId);
+                    if (waitingCnt > 0) {
+                        alert(`《${req.BookTitle}》已歸還入庫！\n🔔 提醒：此書後面還有 ${waitingCnt} 位讀者在「📥 待審核」排隊等候，可前往核准發書給第 1 順位囉！`);
+                    } else {
+                        alert(`《${req.BookTitle}》已成功辦理歸還！在庫數量已恢復為：${book ? book.AvailableCopies : 1} 本。`);
+                    }
                 };
 
                 const getBookBorrowCount = (bookId) => {
@@ -1321,9 +1547,9 @@
                         return;
                     }
 
-                    const start = new Date(form.value.startDate);
-                    const ret = new Date(form.value.returnDate);
-                    const diffDays = Math.round((ret - start) / (1000 * 3600 * 24));
+                    const start = parseLocalDate(form.value.startDate);
+                    const ret = parseLocalDate(form.value.returnDate);
+                    const diffDays = Math.round((ret - start) / 86400000);
 
                     if (diffDays < 0) {
                         alert("歸還日期不能早於借出取書日期唷！請重新確認。");
@@ -1356,7 +1582,7 @@
                             method: "PUT",
                             body: JSON.stringify(newReq)
                         });
-                        alert(`借閱小紙條送出成功！✨\n\n書籍：《${currentBook.value.Title}》\n借閱期間：${newReq.StartDate} ～ ${newReq.DueDate} (共 ${diffDays} 天)\n管理員將為您審核保留！`);
+                        alert(`借閱小紙條送出成功！✨\n\n書籍：《${currentBook.value.Title}》\n借閱期間：${newReq.StartDate} ～ ${newReq.DueDate} (共 ${diffDays} 天)\n可隨時點擊「📋 查詢我的借閱與排隊進度」查看狀態唷！`);
                         showReserveModal.value = false;
                         await refreshAllData();
                     } catch (e) {
@@ -1393,14 +1619,25 @@
                     });
                 });
 
+                // 前台書籍狀態（連動排隊預約數，避免重複搶借誤會）
                 const getStatusText = (b) => {
-                    if (b.AvailableCopies > 0) return `🌱 在館可借 (${b.AvailableCopies})`;
-                    return b.Status === 1 ? "🌸 預約審核中" : "🎒 已借出 (可預約)";
+                    const avail = b.AvailableCopies || 0;
+                    const waiting = getWaitingQueueCount(b.Id);
+                    if (avail > waiting) {
+                        return `🌱 在館可借 (${avail - waiting})`;
+                    }
+                    if (avail > 0 && waiting >= avail) {
+                        return `🌸 已有 ${waiting} 人預約中 (可排隊候補)`;
+                    }
+                    return waiting > 0 ? `🎒 已借出 (${waiting} 人排隊中)` : "🎒 已借出 (可預約)";
                 };
 
                 const getStatusClass = (b) => {
-                    if (b.AvailableCopies > 0) return 'badge-available';
-                    return b.Status === 1 ? 'badge-pending' : 'badge-borrowed';
+                    const avail = b.AvailableCopies || 0;
+                    const waiting = getWaitingQueueCount(b.Id);
+                    if (avail > waiting) return 'badge-available';
+                    if (avail > 0 && waiting >= avail) return 'badge-pending';
+                    return 'badge-borrowed';
                 };
 
                 const getStatusLabel = (status) => {
@@ -1426,13 +1663,16 @@
                     books, loading, searchKeyword, selectedCategory, categories, filteredBooks,
                     adminBookSearch, filteredAdminBooks,
                     isAdmin, showLoginModal, adminPasswordInput, adminTab,
-                    pendingRequests, activeBorrowedList, historyList, bookBorrowRanking,
+                    pendingRequests, activeBorrowedList, displayedBorrowedList, overdueCount, onlyShowOverdue,
+                    historyList, bookBorrowRanking,
                     showNoticeModal, currentNoticeText, openNoticeModal, copyNoticeText,
                     showReserveModal, submitting, currentBook, form,
+                    showMyProgressModal, readerLookupPhone, hasSearchedMyRecords, myMatchedRecords,
+                    openMyProgressModal, searchMyRecords,
                     newBookForm, addingBook, addNewBook,
                     showEditBookModal, savingBookEdit, editBookForm, openEditBookModal, saveEditedBook, deleteBook,
                     showRenewModal, currentRenewReq, renewNewDueDate, maxRenewDueDate,
-                    handleRenewBook, confirmRenewBook, getWaitingQueueCount,
+                    handleRenewBook, confirmRenewBook, getWaitingQueueCount, getQueueInfo, getDueStatus,
                     todayDateStr, maxReturnDateStr, formDaysCount, onStartDateChange, calculateDays,
                     toggleAdminMode, verifyAdminLogin, refreshAllData,
                     approveRequest, rejectRequest, returnBook, submitRequest, openReserveModal,

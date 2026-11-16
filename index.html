@@ -15,6 +15,8 @@
     <link rel="icon" type="image/png" href="https://cdn-icons-png.flaticon.com/512/3389/3389032.png">
 
     <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+    <!-- 本地端條碼掃描元件（鏡頭畫面不離機、不存檔） -->
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
     <style>
         :root {
             --bg-color: #FEFCF8;
@@ -267,6 +269,7 @@
         .btn-renew { background: var(--purple); color: white; }
         .btn-notice { background: #D97706; color: white; }
         .btn-edit { background: #0284C7; color: white; }
+        .btn-scan { background: #0F172A; color: white; padding: 11px; font-size: 0.95rem; width: 100%; }
 
         .btn-reserve {
             align-self: flex-end;
@@ -278,6 +281,15 @@
             font-weight: bold;
             font-size: 0.9rem;
             cursor: pointer;
+        }
+
+        .scanner-box {
+            background: #F8FAFC;
+            border: 2px solid #CBD5E1;
+            border-radius: 12px;
+            padding: 12px;
+            margin-bottom: 12px;
+            text-align: center;
         }
 
         .modal-mask {
@@ -356,22 +368,22 @@
                 <button @click="refreshAllData" style="background: none; border: none; color: #64748B; cursor: pointer; font-size: 0.85rem;">🔄 重新整理</button>
             </div>
             <div class="admin-tabs">
-                <button class="admin-tab-btn" :class="{ active: adminTab === 'pending' }" @click="adminTab = 'pending'">
+                <button class="admin-tab-btn" :class="{ active: adminTab === 'pending' }" @click="switchAdminTab('pending')">
                     📥 待審核 ({{ pendingRequests.length }})
                 </button>
-                <button class="admin-tab-btn" :class="{ active: adminTab === 'borrowed' }" @click="adminTab = 'borrowed'">
+                <button class="admin-tab-btn" :class="{ active: adminTab === 'borrowed' }" @click="switchAdminTab('borrowed')">
                     🎒 借閱中 ({{ activeBorrowedList.length }})
                 </button>
-                <button class="admin-tab-btn" :class="{ active: adminTab === 'addBook' }" @click="adminTab = 'addBook'" style="border-color: #16A34A; color: #16A34A;" :style="adminTab === 'addBook' ? 'background:#16A34A; color:white;' : ''">
+                <button class="admin-tab-btn" :class="{ active: adminTab === 'addBook' }" @click="switchAdminTab('addBook')" style="border-color: #16A34A; color: #16A34A;" :style="adminTab === 'addBook' ? 'background:#16A34A; color:white;' : ''">
                     ➕ 上架新書
                 </button>
-                <button class="admin-tab-btn" :class="{ active: adminTab === 'manageBooks' }" @click="adminTab = 'manageBooks'">
+                <button class="admin-tab-btn" :class="{ active: adminTab === 'manageBooks' }" @click="switchAdminTab('manageBooks')">
                     📚 館藏編輯 ({{ books.length }})
                 </button>
-                <button class="admin-tab-btn" :class="{ active: adminTab === 'ranking' }" @click="adminTab = 'ranking'">
+                <button class="admin-tab-btn" :class="{ active: adminTab === 'ranking' }" @click="switchAdminTab('ranking'">
                     📊 熱門次數
                 </button>
-                <button class="admin-tab-btn" :class="{ active: adminTab === 'history' }" @click="adminTab = 'history'">
+                <button class="admin-tab-btn" :class="{ active: adminTab === 'history' }" @click="switchAdminTab('history'">
                     📜 借還履歷
                 </button>
             </div>
@@ -429,17 +441,49 @@
             </div>
         </div>
 
-        <!-- 後台分頁 3：➕ 上架新書功能專區（已移除存放架位） -->
+        <!-- 後台分頁 3：➕ 上架新書功能專區（支援相機掃描 ISBN 自動帶入書名） -->
         <div v-if="isAdmin && adminTab === 'addBook'" class="item-card" style="border-color: #16A34A;">
             <div style="font-size: 1.15rem; font-weight: bold; color: #16A34A; margin-bottom: 4px;">
                 ✨ 新書建檔上架
             </div>
-            <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 14px;">
-                填妥後點擊確認，書籍將立即入庫並自動點亮「✨ 本月新書」（30 天展期）推薦標籤！
+            <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 10px;">
+                可直接掃描書背 ISBN 條碼自動帶入書名與作者，上架後自動點亮「✨ 本月新書」（30 天展期）標籤！
             </p>
+
+            <!-- 📷 相機掃描 ISBN 控制區 -->
+            <div style="margin-bottom: 12px;">
+                <button v-if="!isScanningIsbn" type="button" class="btn-act btn-scan" @click="startIsbnScanner">
+                    📷 開啟相機掃描書本 ISBN 條碼
+                </button>
+                <button v-else type="button" class="btn-act btn-reject" style="width: 100%; padding: 11px; font-size: 0.95rem;" @click="stopIsbnScanner">
+                    ⏹️ 關閉相機掃描
+                </button>
+            </div>
+
+            <div v-if="isScanningIsbn" class="scanner-box">
+                <div id="isbn-reader" style="width: 100%; border-radius: 8px; overflow: hidden;"></div>
+                <div style="font-size: 0.82rem; color: #475569; margin-top: 8px;">
+                    請將書本背面的 ISBN 條碼對準畫面框線內（鏡頭僅在手機本地辨識，絕不外傳畫面）
+                </div>
+            </div>
+
+            <div v-if="fetchingIsbnInfo" style="background: #EFF6FF; color: #1D4ED8; padding: 10px; border-radius: 8px; font-size: 0.88rem; font-weight: bold; text-align: center; margin-bottom: 10px;">
+                🔍 正在自動查詢書目資料中，請稍候...
+            </div>
+
+            <div class="form-group">
+                <label>ISBN 條碼（掃描後自動填入，亦可手動輸入查詢）</label>
+                <div style="display: flex; gap: 8px;">
+                    <input type="text" v-model="newBookForm.isbn" placeholder="例如：9789861371955" style="flex: 1;" />
+                    <button type="button" class="btn-act btn-edit" style="flex: 0 0 auto; padding: 0 14px;" :disabled="fetchingIsbnInfo" @click="fetchBookInfoByIsbn(newBookForm.isbn)">
+                        🔍 查詢書名
+                    </button>
+                </div>
+            </div>
+
             <div class="form-group">
                 <label>書名 *</label>
-                <input type="text" v-model="newBookForm.title" placeholder="請輸入書名（例如：活在遮蓋之下）" />
+                <input type="text" v-model="newBookForm.title" placeholder="請輸入書名（掃描條碼後會自動帶入）" />
             </div>
             <div class="form-group">
                 <label>作者（選填）</label>
@@ -452,15 +496,9 @@
                     <option v-for="cat in categories" :key="cat" :value="cat"></option>
                 </datalist>
             </div>
-            <div style="display: flex; gap: 10px;">
-                <div class="form-group" style="flex: 1;">
-                    <label>館藏冊數 *</label>
-                    <input type="number" min="1" v-model.number="newBookForm.copies" />
-                </div>
-                <div class="form-group" style="flex: 1;">
-                    <label>ISBN 條碼（選填）</label>
-                    <input type="text" v-model="newBookForm.isbn" placeholder="10 或 13 碼 ISBN" />
-                </div>
+            <div class="form-group">
+                <label>館藏冊數 *</label>
+                <input type="number" min="1" v-model.number="newBookForm.copies" />
             </div>
             <div class="form-group">
                 <label>內容簡介（選填）</label>
@@ -554,7 +592,7 @@
             </div>
         </div>
 
-        <!-- ================= 前台：讀者查書區塊（已移除存放架位） ================= -->
+        <!-- ================= 前台：讀者查書區塊 ================= -->
         <div v-if="!isAdmin">
             <div class="search-box">
                 <input type="text" v-model="searchKeyword" placeholder="🔍 搜尋書名、作者或 ISBN..." />
@@ -770,7 +808,7 @@
     </div>
 
     <script>
-        const { createApp, ref, computed, onMounted } = Vue;
+        const { createApp, ref, computed, onMounted, nextTick } = Vue;
 
         createApp({
             setup() {
@@ -798,8 +836,12 @@
                 const submitting = ref(false);
                 const currentBook = ref({});
 
-                // ➕ 上架新書表單狀態（已移除存放架位）
+                // ➕ 上架新書與相機掃描 ISBN 狀態
                 const addingBook = ref(false);
+                const isScanningIsbn = ref(false);
+                const fetchingIsbnInfo = ref(false);
+                let html5QrCode = null;
+
                 const newBookForm = ref({
                     title: "",
                     author: "",
@@ -875,6 +917,123 @@
                     return diff >= 0 ? diff : 0;
                 };
 
+                // 📷 開啟相機掃描 ISBN 條碼
+                const startIsbnScanner = async () => {
+                    if (isScanningIsbn.value) {
+                        await stopIsbnScanner();
+                        return;
+                    }
+                    if (typeof Html5Qrcode === "undefined") {
+                        alert("條碼掃描元件載入中，請稍候再試或重新整理頁面！");
+                        return;
+                    }
+
+                    isScanningIsbn.value = true;
+                    await nextTick();
+
+                    try {
+                        html5QrCode = new Html5Qrcode("isbn-reader");
+                        await html5QrCode.start(
+                            { facingMode: "environment" },
+                            {
+                                fps: 10,
+                                qrbox: { width: 250, height: 120 }
+                            },
+                            async (decodedText) => {
+                                const cleanIsbn = decodedText.replace(/[^0-9Xx]/g, "");
+                                if (cleanIsbn.length >= 10) {
+                                    await stopIsbnScanner();
+                                    newBookForm.value.isbn = cleanIsbn;
+                                    await fetchBookInfoByIsbn(cleanIsbn);
+                                }
+                            },
+                            () => {}
+                        );
+                    } catch (err) {
+                        console.error(err);
+                        isScanningIsbn.value = false;
+                        html5QrCode = null;
+                        alert("無法開啟相機，請確認手機瀏覽器已允許「相機」權限，或直接在下方輸入 ISBN 查詢。");
+                    }
+                };
+
+                // ⏹️ 停止相機並釋放權限
+                const stopIsbnScanner = async () => {
+                    if (html5QrCode) {
+                        try {
+                            await html5QrCode.stop();
+                            html5QrCode.clear();
+                        } catch (e) {
+                            console.warn(e);
+                        }
+                        html5QrCode = null;
+                    }
+                    isScanningIsbn.value = false;
+                };
+
+                // 🔍 依據 ISBN 自動連線公開書目庫查詢書名、作者與簡介
+                const fetchBookInfoByIsbn = async (rawIsbn) => {
+                    const isbn = (rawIsbn || "").replace(/[^0-9Xx]/g, "");
+                    if (!isbn) {
+                        alert("請先掃描或輸入 ISBN 條碼數字唷！");
+                        return;
+                    }
+
+                    fetchingIsbnInfo.value = true;
+                    try {
+                        // 1. 優先查詢 Google Books 公開書目庫
+                        let res = await fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}`);
+                        let data = await res.json();
+
+                        if (!data.items || data.items.length === 0) {
+                            res = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${isbn}`);
+                            data = await res.json();
+                        }
+
+                        if (data.items && data.items.length > 0) {
+                            const info = data.items[0].volumeInfo;
+                            const fullTitle = info.subtitle ? `${info.title}：${info.subtitle}` : (info.title || "");
+                            newBookForm.value.title = fullTitle;
+                            if (info.authors && info.authors.length > 0) {
+                                newBookForm.value.author = info.authors.join(", ");
+                            }
+                            if (info.description && !newBookForm.value.description) {
+                                newBookForm.value.description = info.description.substring(0, 200);
+                            }
+                            alert(`✅ 已自動帶入書目資料！\n\n書名：《${fullTitle}》\n作者：${newBookForm.value.author || "未標示"}\n\n請確認分類與冊數後按「確認上架入庫」即可！`);
+                            return;
+                        }
+
+                        // 2. 備援查詢 Open Library 公開書目庫
+                        const olRes = await fetch(`https://openlibrary.org/api/books?bibkeys=ISBN:${isbn}&format=json&jscmd=data`);
+                        const olData = await olRes.json();
+                        const olBook = olData[`ISBN:${isbn}`];
+
+                        if (olBook && olBook.title) {
+                            newBookForm.value.title = olBook.title;
+                            if (olBook.authors && olBook.authors.length > 0) {
+                                newBookForm.value.author = olBook.authors.map(a => a.name).join(", ");
+                            }
+                            alert(`✅ 已自動帶入書目資料！\n\n書名：《${olBook.title}》\n作者：${newBookForm.value.author || "未標示"}`);
+                            return;
+                        }
+
+                        alert(`ℹ️ 已讀取 ISBN：${isbn}\n\n公開書目庫中查無此書資料（可能是教會內部刊物或新書），請直接在下方手動填寫書名即可！`);
+                    } catch (e) {
+                        console.error(e);
+                        alert("查詢書目時網路連線異常，請直接手動輸入書名即可。");
+                    } finally {
+                        fetchingIsbnInfo.value = false;
+                    }
+                };
+
+                const switchAdminTab = async (tabName) => {
+                    if (isScanningIsbn.value) {
+                        await stopIsbnScanner();
+                    }
+                    adminTab.value = tabName;
+                };
+
                 const fetchBooks = async () => {
                     try {
                         const res = await fetch(`${FIREBASE_URL}books.json`);
@@ -903,8 +1062,11 @@
                     await Promise.all([fetchBooks(), fetchRequests()]);
                 };
 
-                const toggleAdminMode = () => {
+                const toggleAdminMode = async () => {
                     if (isAdmin.value) {
+                        if (isScanningIsbn.value) {
+                            await stopIsbnScanner();
+                        }
                         isAdmin.value = false;
                     } else {
                         adminPasswordInput.value = "";
@@ -934,7 +1096,6 @@
                     return pendingRequests.value.filter(r => r.BookId === bookId).length;
                 };
 
-                // 🔄 自動檢查排隊狀況的續借處理
                 const handleRenewBook = (req) => {
                     const pendingForThisBook = pendingRequests.value.filter(r => r.BookId === req.BookId);
                     if (pendingForThisBook.length > 0) {
@@ -1065,7 +1226,6 @@
                     }
                 };
 
-                // ➕ 上架新書（不含存放架位）
                 const addNewBook = async () => {
                     if (!newBookForm.value.title.trim()) {
                         alert("請填寫書名唷！📖");
@@ -1113,7 +1273,6 @@
                     }
                 };
 
-                // ✏️ 開啟編輯已上架書籍彈窗
                 const openEditBookModal = (book) => {
                     editBookForm.value = {
                         id: book.Id,
@@ -1129,7 +1288,6 @@
                     showEditBookModal.value = true;
                 };
 
-                // 💾 儲存修改後的書籍資料
                 const saveEditedBook = async () => {
                     if (!editBookForm.value.title.trim()) {
                         alert("書名不能為空白唷！📖");
@@ -1157,13 +1315,11 @@
                                 target.AddedDate = new Date().toISOString();
                             }
 
-                            // 同步更新雲端書籍庫
                             await fetch(`${FIREBASE_URL}books.json`, {
                                 method: "PUT",
                                 body: JSON.stringify(books.value)
                             });
 
-                            // 若書名有異動，同步更新關聯借閱紀錄的書名
                             if (oldTitle !== target.Title) {
                                 const updates = {};
                                 Object.values(requests.value).forEach(r => {
@@ -1190,7 +1346,6 @@
                     }
                 };
 
-                // 🗑️ 刪除已上架書籍
                 const deleteBook = async (book) => {
                     if (!confirm(`確定要刪除《${book.Title}》嗎？\n⚠️ 刪除後將從線上書櫃中永久移除！`)) return;
                     try {
@@ -1425,11 +1580,12 @@
                 return {
                     books, loading, searchKeyword, selectedCategory, categories, filteredBooks,
                     adminBookSearch, filteredAdminBooks,
-                    isAdmin, showLoginModal, adminPasswordInput, adminTab,
+                    isAdmin, showLoginModal, adminPasswordInput, adminTab, switchAdminTab,
                     pendingRequests, activeBorrowedList, historyList, bookBorrowRanking,
                     showNoticeModal, currentNoticeText, openNoticeModal, copyNoticeText,
                     showReserveModal, submitting, currentBook, form,
                     newBookForm, addingBook, addNewBook,
+                    isScanningIsbn, fetchingIsbnInfo, startIsbnScanner, stopIsbnScanner, fetchBookInfoByIsbn,
                     showEditBookModal, savingBookEdit, editBookForm, openEditBookModal, saveEditedBook, deleteBook,
                     showRenewModal, currentRenewReq, renewNewDueDate, maxRenewDueDate,
                     handleRenewBook, confirmRenewBook, getWaitingQueueCount,
